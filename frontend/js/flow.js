@@ -258,12 +258,12 @@ export class FlowCanvas {
     const pockets = store.state.pockets;
     const expenses = store.state.expenseCategories;
 
-    const nodeWidth = Math.min(260, Math.max(190, width * 0.28));
+    const nodeWidth = Math.round(Math.min(260, Math.max(190, width * 0.28)) * 0.78);
     const totalNodeHeight = 76;
 
-    const col1X = Math.max(20, width * 0.04);
-    const col2X = width * 0.38;
-    const col3X = Math.min(width - nodeWidth - 20, width * 0.72);
+    const col1X = Math.max(24, Math.round(width * 0.05));
+    const col2X = Math.round((width - nodeWidth) / 2);
+    const col3X = width - col1X - nodeWidth;
 
     const centerY = Math.max(60, Math.floor((height - totalNodeHeight) / 2) - 10);
 
@@ -385,12 +385,12 @@ export class FlowCanvas {
     const totalBalance = store.getTotalBalance();
     const totalExpense = store.getTotalExpense();
 
-    const nodeWidth = Math.min(265, Math.max(215, width * 0.28));
+    const nodeWidth = Math.round(Math.min(265, Math.max(215, width * 0.28)) * 0.78);
     const totalNodeHeight = 84;
 
-    const col1X = Math.max(20, width * 0.04);
-    const col2X = width * 0.38;
-    const col3X = Math.min(width - nodeWidth - 20, width * 0.72);
+    const col1X = Math.max(24, Math.round(width * 0.05));
+    const col2X = Math.round((width - nodeWidth) / 2);
+    const col3X = width - col1X - nodeWidth;
 
     const topY = 16;
     const frameStartY = topY + totalNodeHeight + 16;
@@ -625,11 +625,11 @@ export class FlowCanvas {
     const pockets = this.getSortedItems(store.state.pockets, 'pocket');
     const expenses = this.getSortedItems(store.state.expenseCategories, 'expense');
 
-    const nodeWidth = Math.min(265, Math.max(215, width * 0.28));
+    const nodeWidth = Math.round(Math.min(265, Math.max(215, width * 0.28)) * 0.78);
 
-    const col1X = width * 0.04;
-    const col2X = width * 0.38;
-    const col3X = width * 0.72;
+    const col1X = Math.max(24, Math.round(width * 0.05));
+    const col2X = Math.round((width - nodeWidth) / 2);
+    const col3X = width - col1X - nodeWidth;
 
     const calcY = (items, customSpacing = spacing) => {
       const startY = 40;
@@ -1203,11 +1203,15 @@ export class FlowCanvas {
     const headerTitle = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     headerTitle.setAttribute('x', (x + 22).toString());
     headerTitle.setAttribute('y', (y + 16).toString());
-    headerTitle.setAttribute('font-size', '11');
+    headerTitle.setAttribute('font-size', '10.5');
     headerTitle.setAttribute('font-weight', '700');
     headerTitle.setAttribute('fill', '#ffffff');
-    const maxChars = Math.floor(width / 12) - 2;
-    headerTitle.textContent = title.length > maxChars ? title.slice(0, maxChars) + '...' : title;
+    const availableTitleWidth = width - (badge ? 74 : 32);
+    const maxChars = Math.max(10, Math.floor(availableTitleWidth / 6.5));
+    headerTitle.textContent = title.length > maxChars ? title.slice(0, maxChars - 1) + '…' : title;
+    const titleTip = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+    titleTip.textContent = title;
+    headerTitle.appendChild(titleTip);
     group.appendChild(headerTitle);
 
     // Header Badge Pill
