@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student Pocket Manager (Brief v04)</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <!-- Top Navigation Bar -->
+  <header class="top-navbar">
+    <div class="brand-section">
+      <div class="brand-logo">SP</div>
+      <div>
+        <div class="brand-title">
+          <span data-i18n="app_title">Student Pocket Manager</span>
+          <span class="brand-badge">v04 Brief</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Center View Tabs -->
+    <nav class="nav-center">
+      <button class="nav-tab-btn active" data-view-tab="flow">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M6 9v12"/><path d="M18 9a9 9 0 0 0-9 9"/></svg>
+        <span data-i18n="view_flow">Kanvas Alur</span>
+      </button>
+      <button class="nav-tab-btn" data-view-tab="table">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>
+        <span data-i18n="view_ledger">Buku Kas (Table View)</span>
+      </button>
+      <button class="nav-tab-btn" data-view-tab="split">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><line x1="12" x2="12" y1="3" y2="21"/></svg>
+        <span>Split View</span>
+      </button>
+    </nav>
+
+    <!-- Right Controls: Mode Toggle, i18n, Export, User Switcher -->
+    <div class="nav-actions">
+      <!-- Dual Mode Toggle -->
+      <div class="mode-toggle-group">
+        <button id="btnModeSimple" class="mode-btn active" data-i18n="mode_simple">Simple</button>
+        <button id="btnModeIRL" class="mode-btn" data-i18n="mode_irl">IRL Flow</button>
+      </div>
+
+      <!-- Language Toggle -->
+      <button id="langToggle" class="mode-btn" style="background: rgba(255,255,255,0.05); color: #cbd5e1; border: 1px solid var(--border-color); padding: 5px 10px;">
+        🇮🇩 ID
+      </button>
+
+      <!-- Dual Export Menu (Brief v04 Sec 7) -->
+      <div style="position: relative;">
+        <button id="exportMenuTrigger" class="mode-btn" style="background: rgba(255,255,255,0.05); color: #cbd5e1; border: 1px solid var(--border-color); display: flex; align-items: center; gap: 4px; padding: 5px 12px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+          <span data-i18n="export_menu">Ekspor</span>
+          <span>▾</span>
+        </button>
+
+        <div id="exportDropdown" class="user-dropdown-menu" style="width: 240px;">
+          <div class="dropdown-header">DUAL EXPORT ENGINE</div>
+          <button id="btnExportCSV" class="dropdown-action-btn">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/></svg>
+            <span data-i18n="export_csv">Unduh Spreadsheet (.csv)</span>
+          </button>
+          <button id="btnExportDB" class="dropdown-action-btn">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+            <span data-i18n="export_db">Unduh SQLite (.sql / .db)</span>
+          </button>
+          <button id="btnExportJSON" class="dropdown-action-btn">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><path d="M20 17.58A5 5 0 0 0 18 8h-1.26A8 8 0 1 0 4 16.25"/></svg>
+            <span data-i18n="export_json">Unduh Backup JSON</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Multi-Saved-Account Switcher (Brief v04 Sec 2.2) -->
+      <div class="user-switcher-container">
+        <div id="userSwitcherTrigger" class="user-switcher-trigger">
+          <div id="activeUserAvatar" class="user-avatar">BP</div>
+          <div class="user-info-text">
+            <div id="activeUserName" class="user-name">Budi Pratama</div>
+            <div id="activeUserRole" class="user-role-badge">STUDENT</div>
+          </div>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+
+        <div id="userDropdownMenu" class="user-dropdown-menu">
+          <div class="dropdown-header">AKUN TERSIMPAN (SAVED PROFILES)</div>
+          <div id="savedAccountsList">
+            <!-- Dynamically populated from accounts.js -->
+          </div>
+          <div class="dropdown-divider"></div>
+          <button id="btnAddAnotherAccount" class="dropdown-action-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="16"/><line x1="8" x2="16" y1="12" y2="12"/></svg>
+            <span>+ Tambah Akun Keluarga</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- KPI Overview Bar -->
+  <section class="kpi-section">
+    <div class="kpi-card">
+      <div>
+        <div class="kpi-label" data-i18n="total_balance">Total Saldo Semua Kantong</div>
+        <div id="kpiTotalBalance" class="kpi-value balance">Rp 0</div>
+      </div>
+      <div class="kpi-icon blue">💰</div>
+    </div>
+
+    <div class="kpi-card">
+      <div>
+        <div class="kpi-label" data-i18n="total_income">Total Dana Masuk</div>
+        <div id="kpiTotalIncome" class="kpi-value income">+Rp 0</div>
+      </div>
+      <div class="kpi-icon green">📥</div>
+    </div>
+
+    <div class="kpi-card">
+      <div>
+        <div class="kpi-label" data-i18n="total_expense">Total Dana Keluar</div>
+        <div id="kpiTotalExpense" class="kpi-value expense">-Rp 0</div>
+      </div>
+      <div class="kpi-icon red">📤</div>
+    </div>
+
+    <div class="kpi-card">
+      <div>
+        <div class="kpi-label" data-i18n="active_pockets">Kantong Aktif</div>
+        <div id="kpiPocketCount" class="kpi-value" style="color: #c084fc;">3 Pockets</div>
+      </div>
+      <div class="kpi-icon purple">💳</div>
+    </div>
+  </section>
+
+  <!-- Quick Action Toolbar -->
+  <section class="toolbar-section">
+    <div class="action-buttons-group">
+      <button id="btnOpenAddIncome" class="btn-action btn-income">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>
+        <span data-i18n="btn_income">+ Pemasukan</span>
+      </button>
+
+      <button id="btnOpenAddExpense" class="btn-action btn-expense">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" x2="19" y1="12" y2="12"/></svg>
+        <span data-i18n="btn_expense">- Pengeluaran</span>
+      </button>
+
+      <button id="btnOpenTransfer" class="btn-action btn-transfer">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>
+        <span data-i18n="btn_transfer">⇄ Pindah Saldo</span>
+      </button>
+
+      <button id="btnOpenAddPocket" class="btn-action btn-pocket">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect width="18" height="14" x="3" y="5" rx="3"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+        <span data-i18n="btn_account">+ Kantong Baru</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- Master Workspace: Flow Canvas + Node Inspector -->
+  <main class="workspace-container">
+    <!-- Flow Canvas Section -->
+    <section id="canvasWrapper" class="canvas-wrapper">
+      <div class="canvas-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #10b981;"></span>
+          <span style="font-weight: 600;">Interaksi Alur: Klik Node untuk inspeksi riwayat & mutasi</span>
+        </div>
+        <div style="font-size: 11px; color: var(--text-muted);">
+          [Pemasukan] ──> [Kantong & Rekening] ──> [Pos Pengeluaran]
+        </div>
+      </div>
+      <div id="flowViewport" class="flow-viewport"></div>
+    </section>
+
+    <!-- Node Inspector Sidebar (Fixed 380px Desktop) -->
+    <aside id="inspectorSidebar" class="inspector-sidebar">
+      <div class="inspector-header">
+        <div class="inspector-title">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+          <span data-i18n="inspector_title">Detail & Alur Node</span>
+        </div>
+      </div>
+      <div id="inspectorBody" class="inspector-body">
+        <div class="inspector-empty-state">
+          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+          <p data-i18n="inspector_empty">Klik salah satu node pada kanvas untuk melihat riwayat dan aliran dananya.</p>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Precision Table View (Brief v04 Section 4.2) -->
+    <section id="tableViewContainer" class="table-view-container">
+      <div class="table-toolbar">
+        <div class="search-input-wrapper">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="ledgerSearchInput" class="search-input" data-i18n-placeholder="search_placeholder" placeholder="Cari catatan, pos pengeluaran, akun...">
+        </div>
+
+        <div class="table-filters">
+          <button class="filter-btn active" data-table-filter="all" data-i18n="filter_all">Semua</button>
+          <button class="filter-btn" data-table-filter="income" data-i18n="filter_income">Pemasukan</button>
+          <button class="filter-btn" data-table-filter="expense" data-i18n="filter_expense">Pengeluaran</button>
+          <button class="filter-btn" data-table-filter="transfer" data-i18n="filter_transfer">Pindah Saldo</button>
+        </div>
+      </div>
+
+      <div class="ledger-table-wrapper">
+        <table class="ledger-table">
+          <thead>
+            <tr>
+              <th data-i18n="ledger_date">Tanggal</th>
+              <th data-i18n="ledger_type">Jenis</th>
+              <th data-i18n="ledger_change">Perubahan</th>
+              <th data-i18n="ledger_running">Saldo Berjalan</th>
+              <th data-i18n="ledger_from">Dari (Sumber)</th>
+              <th data-i18n="ledger_to">Tujuan</th>
+              <th>Kantong Terkait</th>
+              <th data-i18n="ledger_note">Catatan</th>
+              <th data-i18n="ledger_actions" style="text-align: right;">Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="ledgerTableBody">
+            <!-- Dynamically populated from app.js -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal: Add Income -->
+  <div id="modalAddIncome" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" data-i18n="modal_add_income">Catat Pemasukan Baru</h3>
+        <button class="btn-close-modal" data-close-modal>&times;</button>
+      </div>
+      <form id="formAddIncome">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" data-i18n="lbl_source_name">Sumber Pemasukan</label>
+            <input type="text" id="incomeSourceName" class="form-input" placeholder="Cth: Uang Saku Ortu, Gaji Freelance, Beasiswa" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" data-i18n="lbl_dest_account">Masuk ke Kantong Mana</label>
+            <select id="incomeDestAccount" class="form-select" required></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" data-i18n="lbl_amount">Nominal (Rp)</label>
+            <input type="number" id="incomeAmount" class="form-input" placeholder="Cth: 500000" min="1000" step="500" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" data-i18n="lbl_date">Tanggal</label>
+            <input type="date" id="incomeDate" class="form-input" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" data-i18n="lbl_note">Catatan Tambahan</label>
+            <input type="text" id="incomeNote" class="form-input" placeholder="Keterangan opsional">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-action" style="background: #334155; color: white;" data-close-modal data-i18n="btn_cancel">Batal</button>
+          <button type="submit" class="btn-action btn-income" data-i18n="btn_save">Simpan Transaksi</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Add Expense -->
+  <div id="modalAddExpense" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" data-i18n="modal_add_expense">Catat Pengeluaran Baru</h3>
+        <button class="btn-close-modal" data-close-modal>&times;</button>
+      </div>
+      <form id="formAddExpense">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" data-i18n="lbl_expense_name">Pos Pengeluaran</label>
+            <input type="text" id="expenseCategoryName" list="expenseCategorySelect" class="form-input" placeholder="Cth: Makanan, Transport, Modul Kuliah, Kopi" required>
+            <datalist id="expenseCategorySelect"></datalist>
+          </div>
+          <div class="form-group">
+            <label class="form-label" data-i18n="lbl_source_account">Bayar dari Kantong</label>
+            <select id="expenseSourceAccount" class="form-select" required></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" data-i18n="lbl_amount">Nominal (Rp)</label>
+            <input type="number" id="expenseAmount" class="form-input" placeholder="Cth: 35000" min="500" step="500" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" data-i18n="lbl_date">Tanggal</label>
+            <input type="date" id="expenseDate" class="form-input" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" data-i18n="lbl_note">Catatan Tambahan</label>
+            <input type="text" id="expenseNote" class="form-input" placeholder="Keterangan rincian opsional">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-action" style="background: #334155; color: white;" data-close-modal data-i18n="btn_cancel">Batal</button>
+          <button type="submit" class="btn-action btn-expense" data-i18n="btn_save">Simpan Transaksi</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Transfer -->
+  <div id="modalTransfer" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" data-i18n="modal_transfer">Pindah Saldo Antar Kantong</h3>
+        <button class="btn-close-modal" data-close-modal>&times;</button>
+      </div>
+      <form id="formTransfer">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" data-i18n="lbl_transfer_from">Dari Kantong (Sumber)</label>
+            <select id="transferFromAccount" class="form-select" required></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" data-i18n="lbl_transfer_to">Ke Kantong (Tujuan)</label>
+            <select id="transferToAccount" class="form-select" required></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" data-i18n="lbl_amount">Nominal Transfer (Rp)</label>
+            <input type="number" id="transferAmount" class="form-input" placeholder="Cth: 100000" min="1000" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" data-i18n="lbl_date">Tanggal</label>
+            <input type="date" id="transferDate" class="form-input" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" data-i18n="lbl_note">Catatan Transfer</label>
+            <input type="text" id="transferNote" class="form-input" placeholder="Cth: Tarik tunai ATM, Top up e-wallet">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-action" style="background: #334155; color: white;" data-close-modal data-i18n="btn_cancel">Batal</button>
+          <button type="submit" class="btn-action btn-transfer">Transfer Saldo</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Add Pocket -->
+  <div id="modalAddPocket" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" data-i18n="modal_add_account">Buat Kantong / Rekening Baru</h3>
+        <button class="btn-close-modal" data-close-modal>&times;</button>
+      </div>
+      <form id="formAddPocket">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" data-i18n="lbl_pocket_name">Nama Kantong</label>
+            <input type="text" id="pocketName" class="form-input" placeholder="Cth: Dompet Kuliah, ShopeePay, Bank Jago" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" data-i18n="lbl_pocket_category">Tipe Kantong</label>
+            <select id="pocketCategory" class="form-select">
+              <option value="cash" data-i18n="opt_cash">Uang Tunai / Dompet Fisik</option>
+              <option value="bank" data-i18n="opt_bank">Rekening Bank (BCA, Mandiri, dll)</option>
+              <option value="e_wallet" data-i18n="opt_ewallet">E-Wallet (GoPay, OVO, ShopeePay)</option>
+              <option value="savings" data-i18n="opt_savings">Tabungan / Dana Darurat</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Saldo Awal (Opsional)</label>
+            <input type="number" id="pocketInitialBalance" class="form-input" placeholder="0" min="0" value="0">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-action" style="background: #334155; color: white;" data-close-modal data-i18n="btn_cancel">Batal</button>
+          <button type="submit" class="btn-action btn-pocket" data-i18n="btn_save_pocket">Buat Kantong</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Add Saved Account Profile (Brief v04 Sec 2.2) -->
+  <div id="modalAddAccount" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">Tambah Profil Keluarga (Saved Account)</h3>
+        <button class="btn-close-modal" data-close-modal>&times;</button>
+      </div>
+      <form id="formAddAccount">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Nama Lengkap</label>
+            <input type="text" id="newAccountName" class="form-input" placeholder="Cth: Adik Siti, Kakak Rian" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Email Google / Akun</label>
+            <input type="email" id="newAccountEmail" class="form-input" placeholder="Cth: siti@gmail.com">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Peran (Role)</label>
+            <select id="newAccountRole" class="form-select">
+              <option value="student">Student (Pelajar/Mahasiswa)</option>
+              <option value="parent">Parent (Orang Tua / Sponsor)</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-action" style="background: #334155; color: white;" data-close-modal data-i18n="btn_cancel">Batal</button>
+          <button type="submit" class="btn-action btn-pocket">Simpan Profil</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- Main ES Module Script -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
