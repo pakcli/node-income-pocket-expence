@@ -967,3 +967,27 @@ body {
   }
 }
 
+/* Dragging and Drop Placeholder Preview */
+.node-blender.node-dragging {
+  opacity: 0.94;
+  filter: drop-shadow(0 16px 24px rgba(0, 0, 0, 0.9)) !important;
+  cursor: grabbing !important;
+}
+
+.blender-drop-placeholder {
+  pointer-events: none;
+  animation: dropPlaceholderPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes dropPlaceholderPulse {
+  0%, 100% {
+    stroke-opacity: 0.75;
+    fill-opacity: 0.10;
+  }
+  50% {
+    stroke-opacity: 1;
+    fill-opacity: 0.20;
+  }
+}
+
+
