@@ -1,5 +1,5 @@
-// Local Store and Mock Data Engine
-// Manages accounts (pockets), income nodes, expense nodes, and transactions with localStorage persistence.
+// Local-First + Backend Synced Store Engine (Brief v04)
+import { accountManager } from './accounts.js';
 
 const STORAGE_KEY = 'spm_data_v1';
 
@@ -11,15 +11,12 @@ const DEFAULT_DATA = {
   ],
   incomeSources: [
     { id: 'inc_allowance', label: 'Uang Saku Ortu (Mom/Dad)', total: 2000000 },
-    { id: 'inc_freelance', label: 'Projek Desain / Freelance', total: 750000 },
-    { id: 'inc_campus', label: 'Asisten Lab Kampus', total: 300000 }
+    { id: 'inc_freelance', label: 'Projek Desain / Freelance', total: 750000 }
   ],
   expenseCategories: [
-    { id: 'exp_food', label: 'Makan & Minum Harian', total: 425000, icon: 'utensils' },
-    { id: 'exp_transport', label: 'Bensin & Transport', total: 115000, icon: 'car' },
-    { id: 'exp_campus', label: 'Fotokopi & Buku Kuliah', total: 85000, icon: 'book' },
-    { id: 'exp_internet', label: 'Paket Data & WiFi', total: 100000, icon: 'wifi' },
-    { id: 'exp_hangout', label: 'Kopi & Hangout', total: 150000, icon: 'coffee' }
+    { id: 'exp_food', label: 'Makan & Minum Harian', total: 425000 },
+    { id: 'exp_transport', label: 'Bensin & Transport', total: 115000 },
+    { id: 'exp_campus', label: 'Fotokopi & Buku Kuliah', total: 85000 }
   ],
   transactions: [
     {
@@ -31,7 +28,7 @@ const DEFAULT_DATA = {
       toLabel: 'Bank BCA',
       amount: 2000000,
       date: '2026-09-01',
-      note: 'Transfer bulanan awal bulan dari Ibu'
+      note: 'Transfer bulanan awal bulan'
     },
     {
       id: 'tx_2',
@@ -42,7 +39,7 @@ const DEFAULT_DATA = {
       toLabel: 'Dompet Fisik (Cash)',
       amount: 300000,
       date: '2026-09-02',
-      note: 'Tarik tunai di ATM Indomaret'
+      note: 'Tarik tunai ATM'
     },
     {
       id: 'tx_3',
@@ -53,7 +50,7 @@ const DEFAULT_DATA = {
       toLabel: 'GoPay / E-Wallet',
       amount: 200000,
       date: '2026-09-03',
-      note: 'Top up GoPay untuk ongkos ojek'
+      note: 'Top up GoPay'
     },
     {
       id: 'tx_4',
@@ -64,7 +61,7 @@ const DEFAULT_DATA = {
       toLabel: 'Makan & Minum Harian',
       amount: 45000,
       date: '2026-09-04',
-      note: 'Makan siang Nasi Padang + Es Teh'
+      note: 'Makan siang Nasi Padang'
     },
     {
       id: 'tx_5',
@@ -75,51 +72,7 @@ const DEFAULT_DATA = {
       toLabel: 'Bensin & Transport',
       amount: 35000,
       date: '2026-09-05',
-      note: 'Gojek ke kampus pagi'
-    },
-    {
-      id: 'tx_6',
-      type: 'income',
-      fromId: 'inc_freelance',
-      fromLabel: 'Projek Desain / Freelance',
-      toId: 'pkt_bca',
-      toLabel: 'Bank BCA',
-      amount: 750000,
-      date: '2026-09-12',
-      note: 'Pelunasan desain banner UKM'
-    },
-    {
-      id: 'tx_7',
-      type: 'expense',
-      fromId: 'pkt_bca',
-      fromLabel: 'Bank BCA',
-      toId: 'exp_internet',
-      toLabel: 'Paket Data & WiFi',
-      amount: 100000,
-      date: '2026-09-15',
-      note: 'Beli kuota Telkomsel 50GB'
-    },
-    {
-      id: 'tx_8',
-      type: 'expense',
-      fromId: 'pkt_cash',
-      fromLabel: 'Dompet Fisik (Cash)',
-      toId: 'exp_campus',
-      toLabel: 'Fotokopi & Buku Kuliah',
-      amount: 85000,
-      date: '2026-09-18',
-      note: 'Jilid modul praktikum semester'
-    },
-    {
-      id: 'tx_9',
-      type: 'expense',
-      fromId: 'pkt_gopay',
-      fromLabel: 'GoPay / E-Wallet',
-      toId: 'exp_hangout',
-      toLabel: 'Kopi & Hangout',
-      amount: 65000,
-      date: '2026-09-22',
-      note: 'Kopi Susu Senja + snack tugas bareng'
+      note: 'Gojek ke kampus'
     }
   ]
 };
@@ -128,16 +81,21 @@ class Store {
   constructor() {
     this.state = this.loadState();
     this.recalculateBalances();
+
+    // Re-sync when active account changes
+    window.addEventListener('accountChanged', () => {
+      this.syncWithBackend();
+    });
+
+    this.syncWithBackend();
   }
 
   loadState() {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        return JSON.parse(stored);
-      }
+      if (stored) return JSON.parse(stored);
     } catch (e) {
-      console.warn('Could not read from localStorage, using default data:', e);
+      console.warn('Local storage read error:', e);
     }
     return JSON.parse(JSON.stringify(DEFAULT_DATA));
   }
@@ -147,18 +105,12 @@ class Store {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
     } catch (e) {
-      console.warn('Could not save to localStorage:', e);
+      console.warn('Local storage write error:', e);
     }
     window.dispatchEvent(new CustomEvent('storeUpdated', { detail: this.state }));
   }
 
-  resetToDefault() {
-    this.state = JSON.parse(JSON.stringify(DEFAULT_DATA));
-    this.saveState();
-  }
-
   recalculateBalances() {
-    // Reset balances to initial balances
     this.state.pockets.forEach(pkt => {
       pkt.inflow = 0;
       pkt.outflow = 0;
@@ -173,7 +125,6 @@ class Store {
       exp.total = 0;
     });
 
-    // Replay transactions sorted by date
     const sorted = [...this.state.transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
 
     sorted.forEach(tx => {
@@ -209,8 +160,41 @@ class Store {
     });
   }
 
-  // Pocket CRUD
-  addPocket({ label, category, initialBalance = 0, color }) {
+  async syncWithBackend() {
+    const headers = accountManager.getAuthHeader();
+    if (!headers.Authorization) return;
+
+    try {
+      const [resNodes, resTxs] = await Promise.all([
+        fetch('/api/nodes', { headers }),
+        fetch('/api/transactions', { headers })
+      ]);
+
+      if (resNodes.ok && resTxs.ok) {
+        const dataNodes = await resNodes.json();
+        const dataTxs = await resTxs.json();
+
+        if (dataNodes.pockets && dataNodes.pockets.length > 0) {
+          this.state.pockets = dataNodes.pockets;
+        }
+        if (dataNodes.incomeSources && dataNodes.incomeSources.length > 0) {
+          this.state.incomeSources = dataNodes.incomeSources;
+        }
+        if (dataNodes.expenseCategories && dataNodes.expenseCategories.length > 0) {
+          this.state.expenseCategories = dataNodes.expenseCategories;
+        }
+        if (dataTxs.transactions) {
+          this.state.transactions = dataTxs.transactions;
+        }
+
+        this.saveState();
+      }
+    } catch (e) {
+      console.log('Backend sync bypassed (offline / static mode active)');
+    }
+  }
+
+  async addPocket({ label, category, initialBalance = 0, color }) {
     const id = 'pkt_' + Date.now();
     const newPocket = {
       id,
@@ -224,10 +208,20 @@ class Store {
     };
     this.state.pockets.push(newPocket);
     this.saveState();
+
+    // Sync to backend if online
+    try {
+      const headers = { 'Content-Type': 'application/json', ...accountManager.getAuthHeader() };
+      await fetch('/api/nodes', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ label, type: 'account', accountCategory: category, initialBalance, color })
+      });
+    } catch (e) {}
+
     return newPocket;
   }
 
-  // Income Node Helper
   getOrCreateIncomeSource(label) {
     let source = this.state.incomeSources.find(i => i.label.toLowerCase() === label.trim().toLowerCase());
     if (!source) {
@@ -241,7 +235,6 @@ class Store {
     return source;
   }
 
-  // Expense Node Helper
   getOrCreateExpenseCategory(label) {
     let cat = this.state.expenseCategories.find(e => e.label.toLowerCase() === label.trim().toLowerCase());
     if (!cat) {
@@ -255,8 +248,7 @@ class Store {
     return cat;
   }
 
-  // Add Transaction
-  addTransaction({ type, fromId, fromLabel, toId, toLabel, amount, date, note }) {
+  async addTransaction({ type, fromId, fromLabel, toId, toLabel, amount, date, note }) {
     const tx = {
       id: 'tx_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
       type,
@@ -270,15 +262,37 @@ class Store {
     };
     this.state.transactions.push(tx);
     this.saveState();
+
+    // Sync to backend if online
+    try {
+      const headers = { 'Content-Type': 'application/json', ...accountManager.getAuthHeader() };
+      const res = await fetch('/api/transactions', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ type, fromId, fromLabel, toId, toLabel, amount, date, note })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        tx.id = data.transaction.id;
+      }
+    } catch (e) {}
+
     return tx;
   }
 
-  deleteTransaction(id) {
+  async deleteTransaction(id) {
     this.state.transactions = this.state.transactions.filter(t => t.id !== id);
     this.saveState();
+
+    try {
+      const headers = accountManager.getAuthHeader();
+      await fetch(`/api/transactions/${id}`, {
+        method: 'DELETE',
+        headers
+      });
+    } catch (e) {}
   }
 
-  // Aggregation Getters
   getTotalBalance() {
     return this.state.pockets.reduce((sum, p) => sum + (p.balance || 0), 0);
   }
@@ -296,9 +310,7 @@ class Store {
   }
 
   getNodeLedger(nodeId) {
-    // Find all transactions touching this node
     const txs = this.state.transactions.filter(t => t.fromId === nodeId || t.toId === nodeId);
-    // Sort chronological
     return txs.sort((a, b) => new Date(b.date) - new Date(a.date));
   }
 }

@@ -1,0 +1,22 @@
+{
+  "name": "node-income-pocket-expence",
+  "version": "1.0.0",
+  "description": "Student Pocket Manager - Visual Flow & Precision Table View Finance Tracker (Brief v04)",
+  "main": "backend/src/server.js",
+  "scripts": {
+    "start": "node backend/src/server.js",
+    "dev": "node backend/src/server.js",
+    "test:auth": "cd backend && node test_auth.js",
+    "frontend:static": "node frontend/serve.js"
+  },
+  "keywords": [
+    "personal-finance",
+    "pocket-manager",
+    "flow-network",
+    "sqlite",
+    "express",
+    "cpanel"
+  ],
+  "author": "",
+  "license": "ISC"
+}
