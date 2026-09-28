@@ -23,6 +23,7 @@ export class FlowCanvas {
     this.highlightedTxId = null;
     this.isTimelinePlaying = false;
     this.timelineSpeed = 1;
+    this.currentCashAnim = null;
 
     window.addEventListener('resize', () => this.render());
   }
@@ -95,6 +96,54 @@ export class FlowCanvas {
         const macroEl = document.getElementById(`node-el-${id}`);
         if (macroEl) macroEl.classList.add('node-timeline-active');
       });
+    }
+  }
+
+  pauseCashAnimation() {
+    this.isTimelinePlaying = false;
+    if (this.currentCashAnim && !this.currentCashAnim.isPaused) {
+      this.currentCashAnim.isPaused = true;
+      if (this.currentCashAnim.rafId) {
+        cancelAnimationFrame(this.currentCashAnim.rafId);
+        this.currentCashAnim.rafId = null;
+      }
+      if (this.currentCashAnim.getPoint && this.currentCashAnim.animGroup) {
+        const pt = this.currentCashAnim.getPoint(this.currentCashAnim.progress);
+        this.currentCashAnim.animGroup.setAttribute('transform', `translate(${pt.x}, ${pt.y})`);
+      }
+    }
+    const activeEdges = this.edgesGroup?.querySelectorAll('.edge-timeline-active');
+    activeEdges?.forEach(e => e.classList.add('edge-timeline-paused'));
+  }
+
+  resumeCashAnimation() {
+    this.isTimelinePlaying = true;
+    const activeEdges = this.edgesGroup?.querySelectorAll('.edge-timeline-paused');
+    activeEdges?.forEach(e => e.classList.remove('edge-timeline-paused'));
+
+    if (this.currentCashAnim && this.currentCashAnim.isPaused && this.currentCashAnim.progress < 1) {
+      this.currentCashAnim.isPaused = false;
+      this.currentCashAnim.startTime = performance.now() - (this.currentCashAnim.progress * this.currentCashAnim.durationMs);
+
+      const animObj = this.currentCashAnim;
+      const step = (now) => {
+        if (animObj.isPaused) return;
+
+        const elapsed = now - animObj.startTime;
+        const p = Math.min(1, Math.max(0, elapsed / animObj.durationMs));
+        animObj.progress = p;
+
+        const pt = animObj.getPoint(p);
+        animObj.animGroup.setAttribute('transform', `translate(${pt.x}, ${pt.y})`);
+
+        if (p < 1) {
+          animObj.rafId = requestAnimationFrame(step);
+        } else {
+          const endPt = animObj.getPoint(1);
+          animObj.animGroup.setAttribute('transform', `translate(${endPt.x}, ${endPt.y})`);
+        }
+      };
+      animObj.rafId = requestAnimationFrame(step);
     }
   }
 
@@ -1582,9 +1631,9 @@ export class FlowCanvas {
     path.setAttribute('marker-end', marker);
     parent.appendChild(path);
 
-    // Draw the cash animation value flying from left to right ($999 >>>>>>)
+    // Draw the cash animation value flying from left to right
     if (txInfo && txInfo.amount > 0) {
-      this.drawCashFlowCapsule(parent, pathId, txInfo, isTimelineActive, isHighlighted);
+      this.drawCashFlowCapsule(parent, path, txInfo, isTimelineActive, isHighlighted);
     }
   }
 
@@ -1614,14 +1663,14 @@ export class FlowCanvas {
     path.setAttribute('marker-end', marker);
     parent.appendChild(path);
 
-    // Draw the cash animation value flying along the arc ($999 >>>>>>)
+    // Draw the cash animation value flying along the arc
     if (txInfo && txInfo.amount > 0) {
-      this.drawCashFlowCapsule(parent, pathId, txInfo, isTimelineActive, isHighlighted);
+      this.drawCashFlowCapsule(parent, path, txInfo, isTimelineActive, isHighlighted);
     }
   }
 
-  // Draw Flying Cash Flow Capsule along Edge Curve (Focused on current change: 1.5s transition, pauses when timeline is paused)
-  drawCashFlowCapsule(parent, pathId, txInfo, isTimelineActive, isHighlighted) {
+  // Draw Flying Cash Flow Capsule along Edge Curve (Start node output to node input end, exactly 1.5s per transition)
+  drawCashFlowCapsule(parent, pathEl, txInfo, isTimelineActive, isHighlighted) {
     if (!txInfo || !txInfo.amount) return;
 
     // Focus only on current changes: timeline active frame or explicitly selected node
@@ -1658,30 +1707,6 @@ export class FlowCanvas {
     animGroup.setAttribute('class', `cash-flow-capsule ${isTimelineActive ? 'cash-flow-active' : ''}`);
     animGroup.style.pointerEvents = 'none';
 
-    // SVG animateMotion to glide from node to node in exactly 1.5s per transition (total 3s across 2 hops)
-    const animMotion = document.createElementNS('http://www.w3.org/2000/svg', 'animateMotion');
-    animMotion.setAttribute('rotate', '0'); // Horizontal upright for crisp readability
-
-    if (isTimelineActive && !this.isTimelinePlaying) {
-      // PAUSED: Stop at its track (freeze at 50% midpoint of the curve)
-      animMotion.setAttribute('dur', '1.5s');
-      animMotion.setAttribute('keyPoints', '0.5;0.5');
-      animMotion.setAttribute('keyTimes', '0;1');
-      animMotion.setAttribute('calcMode', 'linear');
-      animMotion.setAttribute('repeatCount', 'indefinite');
-    } else {
-      // PLAYING or node-inspection: Glide across the track in 1.5s
-      const durSec = (1.5 / (this.timelineSpeed || 1)).toFixed(2);
-      animMotion.setAttribute('dur', `${durSec}s`);
-      animMotion.setAttribute('repeatCount', 'indefinite');
-    }
-
-    const mpath = document.createElementNS('http://www.w3.org/2000/svg', 'mpath');
-    mpath.setAttribute('href', `#${pathId}`);
-    mpath.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', `#${pathId}`);
-    animMotion.appendChild(mpath);
-    animGroup.appendChild(animMotion);
-
     // Pill background rect
     const pillRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
     pillRect.setAttribute('x', (-pillWidth / 2).toString());
@@ -1700,7 +1725,7 @@ export class FlowCanvas {
     }
     animGroup.appendChild(pillRect);
 
-    // Value text inside pill (clean nominal, no >>>>>>)
+    // Value text inside pill (clean nominal)
     const textEl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     textEl.setAttribute('x', '0');
     textEl.setAttribute('y', '0');
@@ -1711,8 +1736,73 @@ export class FlowCanvas {
     textEl.setAttribute('font-weight', '800');
     textEl.setAttribute('fill', textColor);
     textEl.textContent = displayText;
-
     animGroup.appendChild(textEl);
+
     parent.appendChild(animGroup);
+
+    // Path coordinate mapping
+    const totalLength = (typeof pathEl.getTotalLength === 'function') 
+      ? pathEl.getTotalLength() 
+      : 100;
+
+    const getPoint = (ratio) => {
+      if (typeof pathEl.getPointAtLength === 'function') {
+        try {
+          const pt = pathEl.getPointAtLength(ratio * totalLength);
+          return { x: pt.x, y: pt.y };
+        } catch (e) {}
+      }
+      return { x: 0, y: 0 };
+    };
+
+    if (isTimelineActive) {
+      if (this.currentCashAnim && this.currentCashAnim.rafId) {
+        cancelAnimationFrame(this.currentCashAnim.rafId);
+        this.currentCashAnim = null;
+      }
+
+      const durationMs = 1500 / (this.timelineSpeed || 1);
+      const startPt = getPoint(0);
+      animGroup.setAttribute('transform', `translate(${startPt.x}, ${startPt.y})`);
+
+      const animObj = {
+        rafId: null,
+        progress: 0,
+        isPaused: !this.isTimelinePlaying,
+        startTime: performance.now(),
+        durationMs,
+        getPoint,
+        animGroup
+      };
+      this.currentCashAnim = animObj;
+
+      if (this.isTimelinePlaying) {
+        const step = (now) => {
+          if (animObj.isPaused) return;
+
+          const elapsed = now - animObj.startTime;
+          const p = Math.min(1, Math.max(0, elapsed / animObj.durationMs));
+          animObj.progress = p;
+
+          const pt = animObj.getPoint(p);
+          animObj.animGroup.setAttribute('transform', `translate(${pt.x}, ${pt.y})`);
+
+          if (p < 1) {
+            animObj.rafId = requestAnimationFrame(step);
+          } else {
+            const endPt = animObj.getPoint(1);
+            animObj.animGroup.setAttribute('transform', `translate(${endPt.x}, ${endPt.y})`);
+          }
+        };
+        animObj.rafId = requestAnimationFrame(step);
+      } else {
+        // Paused on this frame: sit precisely at the start node output
+        animGroup.setAttribute('transform', `translate(${startPt.x}, ${startPt.y})`);
+      }
+    } else if (isHighlighted && this.selectedNodeId) {
+      // Node inspection: show stationary capsule at midpoint of connected wire
+      const midPt = getPoint(0.5);
+      animGroup.setAttribute('transform', `translate(${midPt.x}, ${midPt.y})`);
+    }
   }
 }

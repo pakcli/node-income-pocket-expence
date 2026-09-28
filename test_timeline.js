@@ -54,9 +54,11 @@ async function testTimeline() {
   // Mock flowCanvas
   let highlightedTx = null;
   const mockFlowCanvas = {
-    highlightTimelineTx: (id) => {
+    highlightTimelineTx: (id, isPlaying) => {
       highlightedTx = id;
-    }
+    },
+    pauseCashAnimation: () => {},
+    resumeCashAnimation: () => {}
   };
 
   const timeline = new TimelineController(mockFlowCanvas);
