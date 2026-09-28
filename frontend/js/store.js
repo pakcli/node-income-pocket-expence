@@ -137,13 +137,34 @@ class Store {
   }
 
   loadState() {
+    let data;
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) return JSON.parse(stored);
+      if (stored) data = JSON.parse(stored);
     } catch (e) {
       console.warn('Local storage read error:', e);
     }
-    return JSON.parse(JSON.stringify(DEFAULT_DATA));
+    if (!data) data = JSON.parse(JSON.stringify(DEFAULT_DATA));
+
+    // Ensure labels are never undefined in existing stored data
+    if (data && Array.isArray(data.transactions)) {
+      data.transactions.forEach(tx => {
+        if (!tx.fromLabel || tx.fromLabel === 'undefined' || tx.fromLabel === 'null') {
+          const n = (data.pockets || []).find(p => p.id === tx.fromId) ||
+                    (data.incomeSources || []).find(i => i.id === tx.fromId) ||
+                    (data.expenseCategories || []).find(e => e.id === tx.fromId);
+          tx.fromLabel = n ? n.label : (tx.fromId || '-');
+        }
+        if (!tx.toLabel || tx.toLabel === 'undefined' || tx.toLabel === 'null') {
+          const n = (data.pockets || []).find(p => p.id === tx.toId) ||
+                    (data.incomeSources || []).find(i => i.id === tx.toId) ||
+                    (data.expenseCategories || []).find(e => e.id === tx.toId);
+          tx.toLabel = n ? n.label : (tx.toId || '-');
+        }
+      });
+    }
+
+    return data;
   }
 
   saveState() {
@@ -299,13 +320,27 @@ class Store {
   }
 
   async addTransaction({ type, fromId, fromLabel, toId, toLabel, amount, date, note, adminFee = 0, shippingFee = 0, attachments = [] }) {
+    // Auto-resolve labels if not supplied
+    if (!fromLabel && fromId) {
+      const node = this.state.pockets.find(p => p.id === fromId) ||
+                   this.state.incomeSources.find(i => i.id === fromId) ||
+                   this.state.expenseCategories.find(e => e.id === fromId);
+      fromLabel = node ? node.label : fromId;
+    }
+    if (!toLabel && toId) {
+      const node = this.state.pockets.find(p => p.id === toId) ||
+                   this.state.incomeSources.find(i => i.id === toId) ||
+                   this.state.expenseCategories.find(e => e.id === toId);
+      toLabel = node ? node.label : toId;
+    }
+
     const tx = {
       id: 'tx_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
       type,
       fromId,
-      fromLabel,
+      fromLabel: fromLabel || '-',
       toId,
-      toLabel,
+      toLabel: toLabel || '-',
       amount: Number(amount) || 0,
       adminFee: Number(adminFee) || 0,
       shippingFee: Number(shippingFee) || 0,
@@ -314,6 +349,7 @@ class Store {
       note: note || ''
     };
     this.state.transactions.push(tx);
+    this.recalculateBalances();
     this.saveState();
 
     // Sync to backend if online
@@ -381,8 +417,36 @@ class Store {
     }
   }
 
+  async updateTransaction(id, patch) {
+    const tx = this.state.transactions.find(t => t.id === id);
+    if (!tx) return null;
+    if (patch.amount !== undefined) tx.amount = Number(patch.amount) || 0;
+    if (patch.adminFee !== undefined) tx.adminFee = Number(patch.adminFee) || 0;
+    if (patch.shippingFee !== undefined) tx.shippingFee = Number(patch.shippingFee) || 0;
+    if (patch.date !== undefined) tx.date = patch.date;
+    if (patch.note !== undefined) tx.note = patch.note;
+    if (patch.fromId !== undefined) tx.fromId = patch.fromId;
+    if (patch.fromLabel !== undefined) tx.fromLabel = patch.fromLabel;
+    if (patch.toId !== undefined) tx.toId = patch.toId;
+    if (patch.toLabel !== undefined) tx.toLabel = patch.toLabel;
+    this.recalculateBalances();
+    this.saveState();
+
+    try {
+      const headers = { 'Content-Type': 'application/json', ...accountManager.getAuthHeader() };
+      await fetch(`/api/transactions/${id}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(tx)
+      });
+    } catch (e) {}
+
+    return tx;
+  }
+
   async deleteTransaction(id) {
     this.state.transactions = this.state.transactions.filter(t => t.id !== id);
+    this.recalculateBalances();
     this.saveState();
 
     try {

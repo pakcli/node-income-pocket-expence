@@ -12,15 +12,22 @@ let isInspectorOpen = true;
 let tableFilter = 'all'; // 'all' | 'income' | 'expense' | 'transfer'
 let tableSearchQuery = '';
 let tableSortOrder = 'latest'; // 'latest' (default) | 'oldest'
+let isTableDetailedMode = false; // false = simple mode, true = detailed mode
+let activePocketFilterIds = new Set();
+let scopeFilter = 'all'; // 'all' | 'filtered'
 
 document.addEventListener('DOMContentLoaded', () => {
   initI18n();
   initFlowCanvas();
   initUserSwitcher();
   initKPIs();
+  initPocketFilterChecklist();
   initModals();
   initInspector();
   initTableLedger();
+  initTableDetailToggle();
+  initScopeSelect();
+  initPanelSplitters();
   initViewTabs();
   initModeToggle();
   initExportMenu();
@@ -162,26 +169,117 @@ function renderUserSwitcher() {
   });
 }
 
-// 4. KPIs
+// 4. KPIs & Pocket Checklist Filter
 function initKPIs() {
   updateKPIs();
 }
 
+function initPocketFilterChecklist() {
+  const btnToggle = document.getElementById('btnPocketFilterToggle');
+  const popover = document.getElementById('kpiPocketFilterPopover');
+  const btnToggleAll = document.getElementById('btnToggleAllPockets');
+
+  if (btnToggle && popover) {
+    btnToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      popover.style.display = popover.style.display === 'block' ? 'none' : 'block';
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!popover.contains(e.target) && e.target !== btnToggle) {
+        popover.style.display = 'none';
+      }
+    });
+  }
+
+  if (btnToggleAll) {
+    btnToggleAll.addEventListener('click', () => {
+      const pockets = store.state.pockets || [];
+      const allSelected = activePocketFilterIds.size === pockets.length;
+      if (allSelected) {
+        activePocketFilterIds.clear();
+        if (pockets[0]) activePocketFilterIds.add(pockets[0].id);
+      } else {
+        pockets.forEach(p => activePocketFilterIds.add(p.id));
+      }
+      updateKPIs();
+      renderPocketFilterChecklist();
+      renderTableLedger();
+      if (flowCanvas) flowCanvas.render();
+    });
+  }
+
+  renderPocketFilterChecklist();
+}
+
+function renderPocketFilterChecklist() {
+  const container = document.getElementById('kpiPocketChecklist');
+  const countLabel = document.getElementById('kpiIncludedPocketsCount');
+  if (!container) return;
+
+  const pockets = store.state.pockets || [];
+  if (activePocketFilterIds.size === 0) {
+    pockets.forEach(p => activePocketFilterIds.add(p.id));
+  }
+
+  container.innerHTML = '';
+  pockets.forEach(p => {
+    const isChecked = activePocketFilterIds.has(p.id);
+    const item = document.createElement('label');
+    item.style.cssText = 'display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 6px; border-radius: 4px; cursor: pointer; font-size: 11px;';
+    item.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <input type="checkbox" value="${p.id}" ${isChecked ? 'checked' : ''} style="cursor: pointer; accent-color: #38bdf8;">
+        <span style="color: #f1f5f9; font-weight: 500;">${p.label}</span>
+      </div>
+      <span style="font-family: monospace; color: #93c5fd; font-weight: 700; font-size: 10px;">${i18n.formatCurrency(p.balance)}</span>
+    `;
+
+    item.querySelector('input').addEventListener('change', (e) => {
+      if (e.target.checked) {
+        activePocketFilterIds.add(p.id);
+      } else {
+        if (activePocketFilterIds.size <= 1) {
+          e.target.checked = true;
+          showToast('Minimal 1 kantong harus tetap dipilih!');
+          return;
+        }
+        activePocketFilterIds.delete(p.id);
+      }
+      updateKPIs();
+      renderPocketFilterChecklist();
+      renderTableLedger();
+      if (flowCanvas) flowCanvas.render();
+    });
+
+    container.appendChild(item);
+  });
+
+  if (countLabel) {
+    const isAll = activePocketFilterIds.size === pockets.length;
+    countLabel.textContent = isAll ? `Semua (${pockets.length})` : `${activePocketFilterIds.size} / ${pockets.length}`;
+  }
+}
+
 function updateKPIs() {
-  const totalBalance = store.getTotalBalance();
+  const pockets = store.state.pockets || [];
+  let filteredBalance = 0;
+  pockets.forEach(p => {
+    if (activePocketFilterIds.size === 0 || activePocketFilterIds.has(p.id)) {
+      filteredBalance += (p.balance || 0);
+    }
+  });
+
   const totalIncome = store.getTotalIncome();
   const totalExpense = store.getTotalExpense();
-  const pocketCount = store.state.pockets.length;
 
   const balEl = document.getElementById('kpiTotalBalance');
   const incEl = document.getElementById('kpiTotalIncome');
   const expEl = document.getElementById('kpiTotalExpense');
-  const pktEl = document.getElementById('kpiPocketCount');
 
-  if (balEl) balEl.textContent = i18n.formatCurrency(totalBalance);
+  if (balEl) balEl.textContent = i18n.formatCurrency(filteredBalance);
   if (incEl) incEl.textContent = `+${i18n.formatCurrency(totalIncome)}`;
   if (expEl) expEl.textContent = `-${i18n.formatCurrency(totalExpense)}`;
-  if (pktEl) pktEl.textContent = `${pocketCount} Pockets`;
 }
 
 // 5. Node Inspector & Strict Panel Editing
@@ -1462,6 +1560,173 @@ function submitQuickAddTransaction() {
   }
 }
 
+function renderQuickAddRow() {
+  const tr = document.getElementById('tableQuickAddRow');
+  if (!tr) return;
+
+  const prevDate = document.getElementById('quickAddDate')?.value || new Date().toISOString().split('T')[0];
+  const prevType = document.getElementById('quickAddType')?.value || 'expense';
+  const prevAmt = document.getElementById('quickAddAmount')?.value || '';
+  const prevAdmin = document.getElementById('quickAddAdminFee')?.value || '0';
+  const prevShip = document.getElementById('quickAddShippingFee')?.value || '0';
+  const prevSrc = document.getElementById('quickAddSource')?.value;
+  const prevTgt = document.getElementById('quickAddTarget')?.value;
+  const prevNote = document.getElementById('quickAddNote')?.value || '';
+
+  if (!isTableDetailedMode) {
+    // Simple Mode: 10 columns
+    tr.innerHTML = `
+      <td style="text-align: center; color: #10b981; font-weight: 800; font-size: 14px;" title="Tambah Transaksi Cepat">⚡</td>
+      <td><input type="date" id="quickAddDate" class="quick-input" title="Tanggal Transaksi" value="${prevDate}"></td>
+      <td>
+        <select id="quickAddType" class="quick-select" title="Jenis Transaksi">
+          <option value="expense" ${prevType === 'expense' ? 'selected' : ''}>EXPENSE</option>
+          <option value="income" ${prevType === 'income' ? 'selected' : ''}>INCOME</option>
+          <option value="transfer" ${prevType === 'transfer' ? 'selected' : ''}>TRANSFER</option>
+        </select>
+      </td>
+      <td>
+        <div style="display: flex; gap: 4px; align-items: center; position: relative;">
+          <input type="number" id="quickAddAmount" class="quick-input" placeholder="Rp Pokok" min="1" required style="width: 80px;" value="${prevAmt}">
+          <button type="button" id="btnQuickAddFeesToggle" class="quick-btn-icon" title="Rincian Admin & Ongkir">🏷️</button>
+          <div id="quickAddFeesPopover" class="quick-fees-popover" style="display: none;">
+            <div style="font-size: 10px; font-weight: 700; color: #94a3b8; margin-bottom: 4px;">RINCIAN BIAYA</div>
+            <label style="font-size: 9px; color: #cbd5e1;">Biaya Admin:</label>
+            <input type="number" id="quickAddAdminFee" class="quick-input" placeholder="0" min="0" value="${prevAdmin}" style="margin-bottom: 4px;">
+            <label style="font-size: 9px; color: #cbd5e1;">Ongkos Kirim:</label>
+            <input type="number" id="quickAddShippingFee" class="quick-input" placeholder="0" min="0" value="${prevShip}">
+          </div>
+        </div>
+      </td>
+      <td style="font-size: 11px; color: var(--text-muted); font-style: italic; white-space: nowrap;">Auto-Calc</td>
+      <td><select id="quickAddSource" class="quick-select" title="Sumber Dana"></select></td>
+      <td><select id="quickAddTarget" class="quick-select" title="Pos / Rekening Tujuan"></select></td>
+      <td id="quickAddPocketLabel" style="font-size: 11px; color: #93c5fd; white-space: nowrap;">-</td>
+      <td><input type="text" id="quickAddNote" class="quick-input" placeholder="Catatan transaksi..." style="min-width: 110px;" value="${prevNote}"></td>
+      <td class="sticky-action-cell" style="text-align: right; white-space: nowrap;">
+        <button type="button" id="btnQuickAddSubmit" class="btn-action btn-income" style="padding: 4px 10px; font-size: 11px; font-weight: 700;">+ Catat</button>
+      </td>
+    `;
+  } else {
+    // Detailed Mode: 13 columns
+    const totalKas = (Number(prevAmt) || 0) + (Number(prevAdmin) || 0) + (Number(prevShip) || 0);
+    tr.innerHTML = `
+      <td style="text-align: center; color: #10b981; font-weight: 800; font-size: 14px;" title="Tambah Transaksi Cepat">⚡</td>
+      <td><input type="date" id="quickAddDate" class="quick-input" title="Tanggal Transaksi" value="${prevDate}"></td>
+      <td>
+        <select id="quickAddType" class="quick-select" title="Jenis Transaksi">
+          <option value="expense" ${prevType === 'expense' ? 'selected' : ''}>EXPENSE</option>
+          <option value="income" ${prevType === 'income' ? 'selected' : ''}>INCOME</option>
+          <option value="transfer" ${prevType === 'transfer' ? 'selected' : ''}>TRANSFER</option>
+        </select>
+      </td>
+      <td><input type="number" id="quickAddAmount" class="quick-input" placeholder="Rp Pokok" min="1" required style="width: 80px;" value="${prevAmt}"></td>
+      <td><input type="number" id="quickAddAdminFee" class="quick-input" placeholder="Admin" min="0" value="${prevAdmin}" style="width: 65px;"></td>
+      <td><input type="number" id="quickAddShippingFee" class="quick-input" placeholder="Ongkir" min="0" value="${prevShip}" style="width: 65px;"></td>
+      <td id="quickAddTotalKasDisplay" style="font-size: 11px; font-family: 'JetBrains Mono', monospace; color: #38bdf8; font-weight: 700; white-space: nowrap;">${i18n.formatCurrency(totalKas)}</td>
+      <td style="font-size: 11px; color: var(--text-muted); font-style: italic; white-space: nowrap;">Auto-Calc</td>
+      <td><select id="quickAddSource" class="quick-select" title="Sumber Dana"></select></td>
+      <td><select id="quickAddTarget" class="quick-select" title="Pos / Rekening Tujuan"></select></td>
+      <td id="quickAddPocketLabel" style="font-size: 11px; color: #93c5fd; white-space: nowrap;">-</td>
+      <td><input type="text" id="quickAddNote" class="quick-input" placeholder="Catatan transaksi..." style="min-width: 110px;" value="${prevNote}"></td>
+      <td class="sticky-action-cell" style="text-align: right; white-space: nowrap;">
+        <button type="button" id="btnQuickAddSubmit" class="btn-action btn-income" style="padding: 4px 10px; font-size: 11px; font-weight: 700;">+ Catat</button>
+      </td>
+    `;
+  }
+
+  bindQuickAddRowEvents(prevSrc, prevTgt);
+}
+
+function bindQuickAddRowEvents(prevSrc, prevTgt) {
+  const quickTypeEl = document.getElementById('quickAddType');
+  const quickSrcEl = document.getElementById('quickAddSource');
+  const quickTgtEl = document.getElementById('quickAddTarget');
+  const pktLabelEl = document.getElementById('quickAddPocketLabel');
+  const quickAmtInput = document.getElementById('quickAddAmount');
+  const quickAdminInput = document.getElementById('quickAddAdminFee');
+  const quickShipInput = document.getElementById('quickAddShippingFee');
+  const quickTotalKas = document.getElementById('quickAddTotalKasDisplay');
+  const quickNoteInput = document.getElementById('quickAddNote');
+  const btnQuickSubmit = document.getElementById('btnQuickAddSubmit');
+  const btnFeesToggle = document.getElementById('btnQuickAddFeesToggle');
+  const feesPopover = document.getElementById('quickAddFeesPopover');
+
+  const updateTotalKasDisplay = () => {
+    if (quickTotalKas && quickAmtInput) {
+      const amt = Number(quickAmtInput.value) || 0;
+      const adm = Number(quickAdminInput?.value) || 0;
+      const shp = Number(quickShipInput?.value) || 0;
+      quickTotalKas.textContent = i18n.formatCurrency(amt + adm + shp);
+    }
+  };
+
+  quickAmtInput?.addEventListener('input', updateTotalKasDisplay);
+  quickAdminInput?.addEventListener('input', updateTotalKasDisplay);
+  quickShipInput?.addEventListener('input', updateTotalKasDisplay);
+
+  if (quickTypeEl) {
+    quickTypeEl.addEventListener('change', () => {
+      updateQuickAddDropdowns();
+    });
+  }
+
+  if (quickSrcEl) {
+    quickSrcEl.addEventListener('change', () => {
+      if (quickTypeEl?.value === 'expense' && pktLabelEl) {
+        const pocket = store.state.pockets.find(p => p.id === quickSrcEl.value);
+        pktLabelEl.textContent = pocket ? pocket.label : '-';
+      }
+    });
+  }
+
+  if (quickTgtEl) {
+    quickTgtEl.addEventListener('change', () => {
+      if (quickTypeEl?.value === 'income' && pktLabelEl) {
+        const pocket = store.state.pockets.find(p => p.id === quickTgtEl.value);
+        pktLabelEl.textContent = pocket ? pocket.label : '-';
+      }
+    });
+  }
+
+  if (btnFeesToggle && feesPopover) {
+    btnFeesToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      feesPopover.style.display = feesPopover.style.display === 'block' ? 'none' : 'block';
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!feesPopover.contains(e.target) && e.target !== btnFeesToggle) {
+        feesPopover.style.display = 'none';
+      }
+    });
+  }
+
+  if (btnQuickSubmit) {
+    btnQuickSubmit.addEventListener('click', () => {
+      submitQuickAddTransaction();
+    });
+  }
+
+  quickAmtInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      submitQuickAddTransaction();
+    }
+  });
+
+  quickNoteInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      submitQuickAddTransaction();
+    }
+  });
+
+  updateQuickAddDropdowns();
+  if (prevSrc && quickSrcEl) quickSrcEl.value = prevSrc;
+  if (prevTgt && quickTgtEl) quickTgtEl.value = prevTgt;
+}
+
 function initTableLedger() {
   const searchInput = document.getElementById('ledgerSearchInput');
   if (searchInput) {
@@ -1480,81 +1745,6 @@ function initTableLedger() {
       renderTableLedger();
     });
   });
-
-  // Setup Quick Add Row inputs
-  const quickDateEl = document.getElementById('quickAddDate');
-  if (quickDateEl && !quickDateEl.value) {
-    quickDateEl.value = new Date().toISOString().split('T')[0];
-  }
-
-  const quickTypeEl = document.getElementById('quickAddType');
-  if (quickTypeEl) {
-    quickTypeEl.addEventListener('change', () => {
-      updateQuickAddDropdowns();
-    });
-  }
-
-  const quickSrcEl = document.getElementById('quickAddSource');
-  const quickTgtEl = document.getElementById('quickAddTarget');
-  const pktLabelEl = document.getElementById('quickAddPocketLabel');
-  if (quickSrcEl) {
-    quickSrcEl.addEventListener('change', () => {
-      if (quickTypeEl?.value === 'expense' && pktLabelEl) {
-        const pocket = store.state.pockets.find(p => p.id === quickSrcEl.value);
-        pktLabelEl.textContent = pocket ? pocket.label : '-';
-      }
-    });
-  }
-  if (quickTgtEl) {
-    quickTgtEl.addEventListener('change', () => {
-      if (quickTypeEl?.value === 'income' && pktLabelEl) {
-        const pocket = store.state.pockets.find(p => p.id === quickTgtEl.value);
-        pktLabelEl.textContent = pocket ? pocket.label : '-';
-      }
-    });
-  }
-
-  const btnFeesToggle = document.getElementById('btnQuickAddFeesToggle');
-  const feesPopover = document.getElementById('quickAddFeesPopover');
-  if (btnFeesToggle && feesPopover) {
-    btnFeesToggle.addEventListener('click', (e) => {
-      e.stopPropagation();
-      feesPopover.style.display = feesPopover.style.display === 'block' ? 'none' : 'block';
-    });
-
-    document.addEventListener('click', (e) => {
-      if (!feesPopover.contains(e.target) && e.target !== btnFeesToggle) {
-        feesPopover.style.display = 'none';
-      }
-    });
-  }
-
-  const btnQuickSubmit = document.getElementById('btnQuickAddSubmit');
-  if (btnQuickSubmit) {
-    btnQuickSubmit.addEventListener('click', () => {
-      submitQuickAddTransaction();
-    });
-  }
-
-  const quickAmtInput = document.getElementById('quickAddAmount');
-  if (quickAmtInput) {
-    quickAmtInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        submitQuickAddTransaction();
-      }
-    });
-  }
-
-  const quickNoteInput = document.getElementById('quickAddNote');
-  if (quickNoteInput) {
-    quickNoteInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        submitQuickAddTransaction();
-      }
-    });
-  }
 
   // Real-time synchronization with Timeline playback and scrubbing
   window.addEventListener('timelineFrameChanged', (e) => {
@@ -1584,13 +1774,12 @@ function initTableLedger() {
   const btnToggleSortOrder = document.getElementById('btnToggleSortOrder');
   const sortOrderIcon = document.getElementById('sortOrderIcon');
   const sortOrderLabel = document.getElementById('sortOrderLabel');
-  const thSortDate = document.getElementById('thSortDate');
-  const thDateSortIndicator = document.getElementById('thDateSortIndicator');
 
   const updateSortUI = () => {
     const isLatest = tableSortOrder === 'latest';
     if (sortOrderIcon) sortOrderIcon.textContent = isLatest ? '⬇️' : '⬆️';
     if (sortOrderLabel) sortOrderLabel.textContent = isLatest ? 'Terbaru Dulu' : 'Terlama Dulu';
+    const thDateSortIndicator = document.getElementById('thDateSortIndicator');
     if (thDateSortIndicator) thDateSortIndicator.textContent = isLatest ? '▼' : '▲';
     if (btnToggleSortOrder) {
       btnToggleSortOrder.classList.toggle('order-oldest', !isLatest);
@@ -1610,13 +1799,205 @@ function initTableLedger() {
     btnToggleSortOrder.addEventListener('click', toggleSortOrder);
   }
 
-  if (thSortDate) {
-    thSortDate.addEventListener('click', toggleSortOrder);
+  updateSortUI();
+  renderQuickAddRow();
+  renderTableLedger();
+}
+
+function initTableDetailToggle() {
+  const btnToggle = document.getElementById('btnToggleTableDetailMode');
+  const iconEl = document.getElementById('tableDetailIcon');
+  const labelEl = document.getElementById('tableDetailLabel');
+
+  const updateUI = () => {
+    if (iconEl) iconEl.textContent = isTableDetailedMode ? '📋' : '📑';
+    if (labelEl) labelEl.textContent = isTableDetailedMode ? 'Simple Mode' : 'Detailed Mode';
+    if (btnToggle) {
+      btnToggle.style.borderColor = isTableDetailedMode ? '#38bdf8' : 'var(--border-color)';
+      btnToggle.style.color = isTableDetailedMode ? '#38bdf8' : '#cbd5e1';
+      btnToggle.title = isTableDetailedMode
+        ? 'Tampilan saat ini: Detailed (Raw Data). Klik untuk kembali ke Mode Ringkas'
+        : 'Tampilan saat ini: Simple. Klik untuk Mode Rinci (Raw Data)';
+    }
+  };
+
+  if (btnToggle) {
+    btnToggle.addEventListener('click', () => {
+      isTableDetailedMode = !isTableDetailedMode;
+      updateUI();
+      renderQuickAddRow();
+      renderTableLedger();
+    });
   }
 
-  updateSortUI();
-  updateQuickAddDropdowns();
-  renderTableLedger();
+  updateUI();
+}
+
+function initScopeSelect() {
+  const scopeSelect = document.getElementById('scopeSelect');
+  if (scopeSelect) {
+    scopeSelect.addEventListener('change', (e) => {
+      scopeFilter = e.target.value;
+      renderTableLedger();
+      updateKPIs();
+      if (flowCanvas) flowCanvas.render();
+    });
+  }
+}
+
+function initPanelSplitters() {
+  const container = document.getElementById('workspaceContainer');
+  const splitterCanvas = document.getElementById('splitterCanvas');
+  const splitterInspector = document.getElementById('splitterInspector');
+  const canvasWrapper = document.getElementById('canvasWrapper');
+  const inspectorSidebar = document.getElementById('inspectorSidebar');
+  const tableViewContainer = document.getElementById('tableViewContainer');
+
+  if (!container) return;
+
+  const bindDrag = (splitter, getLeftEl, getRightEl) => {
+    if (!splitter) return;
+
+    splitter.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      const leftEl = getLeftEl();
+      const rightEl = getRightEl();
+      if (!leftEl || !rightEl) return;
+
+      splitter.classList.add('dragging');
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+
+      const containerWidth = container.getBoundingClientRect().width;
+
+      const onMouseMove = (moveEvt) => {
+        const leftRect = leftEl.getBoundingClientRect();
+        const rightRect = rightEl.getBoundingClientRect();
+        const combinedWidth = leftRect.width + rightRect.width;
+
+        const newLeftWidth = moveEvt.clientX - leftRect.left;
+        const newRightWidth = combinedWidth - newLeftWidth;
+
+        // Min width 18% of container or 160px
+        const minWidth = Math.max(160, containerWidth * 0.18);
+
+        if (newLeftWidth >= minWidth && newRightWidth >= minWidth) {
+          leftEl.style.flex = 'none';
+          rightEl.style.flex = 'none';
+          leftEl.style.width = `${newLeftWidth}px`;
+          rightEl.style.width = `${newRightWidth}px`;
+          if (flowCanvas) flowCanvas.render();
+        }
+      };
+
+      const onMouseUp = () => {
+        splitter.classList.remove('dragging');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        window.removeEventListener('mousemove', onMouseMove);
+        window.removeEventListener('mouseup', onMouseUp);
+        if (flowCanvas) flowCanvas.render();
+      };
+
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+    });
+  };
+
+  // Splitter 1: Canvas to Inspector / Table
+  bindDrag(splitterCanvas, () => canvasWrapper, () => {
+    if (currentView === 'split') {
+      if (isInspectorOpen && inspectorSidebar && !container.classList.contains('inspector-hidden')) {
+        return inspectorSidebar;
+      }
+      return tableViewContainer;
+    }
+    return inspectorSidebar;
+  });
+
+  // Splitter 2: Inspector to Table in Split Mode
+  bindDrag(splitterInspector, () => inspectorSidebar, () => tableViewContainer);
+}
+
+function openEditTransactionModal(tx) {
+  const idEl = document.getElementById('editTxId');
+  const dateEl = document.getElementById('editTxDate');
+  const amtEl = document.getElementById('editTxAmount');
+  const adminEl = document.getElementById('editTxAdminFee');
+  const shipEl = document.getElementById('editTxShippingFee');
+  const noteEl = document.getElementById('editTxNote');
+
+  if (idEl) idEl.value = tx.id;
+  if (dateEl) dateEl.value = tx.date || new Date().toISOString().split('T')[0];
+  if (amtEl) amtEl.value = tx.amount || 0;
+  if (adminEl) adminEl.value = tx.adminFee || 0;
+  if (shipEl) shipEl.value = tx.shippingFee || 0;
+  if (noteEl) noteEl.value = tx.note || '';
+
+  openModal('modalEditTransaction');
+}
+
+function renderTableHeader() {
+  const headerRow = document.getElementById('tableHeaderRow');
+  if (!headerRow) return;
+
+  const isLatest = tableSortOrder === 'latest';
+  const sortArrow = isLatest ? '▼' : '▲';
+
+  if (!isTableDetailedMode) {
+    // Simple Mode (10 cols)
+    headerRow.innerHTML = `
+      <th style="width: 38px; text-align: center;" title="Rel Timeline Vertikal">TIMELINE</th>
+      <th data-i18n="ledger_date" id="thSortDate" style="cursor: pointer; user-select: none;" title="Klik untuk ubah urutan tanggal (Terbaru / Terlama)">
+        <span style="display: inline-flex; align-items: center; gap: 4px;">
+          Tanggal
+          <span id="thDateSortIndicator" style="font-size: 10px; color: #38bdf8;">${sortArrow}</span>
+        </span>
+      </th>
+      <th data-i18n="ledger_type">Jenis</th>
+      <th data-i18n="ledger_change">Perubahan</th>
+      <th data-i18n="ledger_running">Saldo Berjalan</th>
+      <th data-i18n="ledger_from">Dari (Sumber)</th>
+      <th data-i18n="ledger_to">Tujuan</th>
+      <th>Kantong Terkait</th>
+      <th data-i18n="ledger_note">Catatan</th>
+      <th data-i18n="ledger_actions" style="text-align: right; position: sticky; right: 0; background: #0f172a; z-index: 3;">Aksi</th>
+    `;
+  } else {
+    // Detailed Mode (13 cols)
+    headerRow.innerHTML = `
+      <th style="width: 38px; text-align: center;" title="Rel Timeline Vertikal">TIMELINE</th>
+      <th data-i18n="ledger_date" id="thSortDate" style="cursor: pointer; user-select: none;" title="Klik untuk ubah urutan tanggal (Terbaru / Terlama)">
+        <span style="display: inline-flex; align-items: center; gap: 4px;">
+          Tanggal
+          <span id="thDateSortIndicator" style="font-size: 10px; color: #38bdf8;">${sortArrow}</span>
+        </span>
+      </th>
+      <th data-i18n="ledger_type">Jenis</th>
+      <th title="Nominal Pokok Tanpa Biaya Tambahan">Nominal Pokok</th>
+      <th title="Biaya Transfer / Administrasi">Biaya Admin</th>
+      <th title="Ongkos Kirim">Ongkos Kirim</th>
+      <th title="Total Kas Riil Masuk/Keluar Termasuk Admin & Ongkir">Total Kas</th>
+      <th data-i18n="ledger_running">Saldo Berjalan</th>
+      <th data-i18n="ledger_from">Dari (Sumber)</th>
+      <th data-i18n="ledger_to">Tujuan</th>
+      <th>Kantong Terkait</th>
+      <th data-i18n="ledger_note">Catatan</th>
+      <th data-i18n="ledger_actions" style="text-align: right; position: sticky; right: 0; background: #0f172a; z-index: 3;">Aksi</th>
+    `;
+  }
+
+  const thSortDate = document.getElementById('thSortDate');
+  if (thSortDate) {
+    thSortDate.addEventListener('click', () => {
+      tableSortOrder = tableSortOrder === 'latest' ? 'oldest' : 'latest';
+      const sortOrderIcon = document.getElementById('sortOrderIcon');
+      const sortOrderLabel = document.getElementById('sortOrderLabel');
+      if (sortOrderIcon) sortOrderIcon.textContent = tableSortOrder === 'latest' ? '⬇️' : '⬆️';
+      if (sortOrderLabel) sortOrderLabel.textContent = tableSortOrder === 'latest' ? 'Terbaru Dulu' : 'Terlama Dulu';
+      renderTableLedger();
+    });
+  }
 }
 
 function getTxRunningBalances() {
@@ -1648,6 +2029,8 @@ function renderTableLedger() {
   if (!tbody) return;
   tbody.innerHTML = '';
 
+  renderTableHeader();
+
   let list = [...store.state.transactions];
 
   // Apply Type Filter
@@ -1655,12 +2038,26 @@ function renderTableLedger() {
     list = list.filter(t => t.type === tableFilter);
   }
 
+  // Apply Scope Filter (All vs Filtered Pockets)
+  if (scopeFilter === 'filtered' && activePocketFilterIds.size > 0) {
+    list = list.filter(t => {
+      if (t.type === 'expense') {
+        return activePocketFilterIds.has(t.fromId);
+      } else if (t.type === 'income') {
+        return activePocketFilterIds.has(t.toId);
+      } else if (t.type === 'transfer') {
+        return activePocketFilterIds.has(t.fromId) || activePocketFilterIds.has(t.toId);
+      }
+      return false;
+    });
+  }
+
   // Apply Search
   if (tableSearchQuery.trim()) {
     list = list.filter(t => 
       (t.note && t.note.toLowerCase().includes(tableSearchQuery)) ||
-      t.fromLabel.toLowerCase().includes(tableSearchQuery) ||
-      t.toLabel.toLowerCase().includes(tableSearchQuery)
+      (t.fromLabel && t.fromLabel.toLowerCase().includes(tableSearchQuery)) ||
+      (t.toLabel && t.toLabel.toLowerCase().includes(tableSearchQuery))
     );
   }
 
@@ -1671,10 +2068,11 @@ function renderTableLedger() {
     list.sort((a, b) => new Date(b.date) - new Date(a.date));
   }
 
+  const colCount = isTableDetailedMode ? 13 : 10;
   if (list.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="10" style="text-align: center; padding: 30px; color: var(--text-muted);">
+        <td colspan="${colCount}" style="text-align: center; padding: 30px; color: var(--text-muted);">
           ${i18n.t('no_transactions')}
         </td>
       </tr>
@@ -1689,6 +2087,16 @@ function renderTableLedger() {
     ? timelineController.transactions[timelineController.currentFrame]?.id
     : null;
 
+  const getSafeLabel = (id, label) => {
+    if (label && label !== 'undefined' && label !== 'null' && label !== '[object Object]' && String(label).trim() !== '') {
+      return label;
+    }
+    const node = store.state.pockets.find(p => p.id === id) ||
+                 store.state.incomeSources.find(i => i.id === id) ||
+                 store.state.expenseCategories.find(e => e.id === id);
+    return node ? node.label : (id || '-');
+  };
+
   list.forEach((tx, idx) => {
     const isFirstRow = idx === 0;
     const isLastRow = idx === list.length - 1;
@@ -1701,7 +2109,17 @@ function renderTableLedger() {
     const isExp = tx.type === 'expense';
     const changeClass = isInc ? 'delta-income' : (isExp ? 'delta-expense' : 'delta-transfer');
     const changeSign = isInc ? '+' : (isExp ? '-' : '⇄ ');
-    const assignedPocket = tx.type === 'expense' ? tx.fromLabel : tx.toLabel;
+
+    const fromSafe = getSafeLabel(tx.fromId, tx.fromLabel);
+    const toSafe = getSafeLabel(tx.toId, tx.toLabel);
+    const assignedPocket = isExp ? fromSafe : (isInc ? toSafe : `${fromSafe} ➔ ${toSafe}`);
+
+    const baseAmount = Number(tx.amount) || 0;
+    const adminFee = Number(tx.adminFee) || 0;
+    const shippingFee = Number(tx.shippingFee) || 0;
+    let totalCash = baseAmount;
+    if (isExp) totalCash = baseAmount + adminFee + shippingFee;
+    else if (tx.type === 'transfer') totalCash = baseAmount + adminFee;
 
     const railTitle = isLatest ? `● Keyframe Terbaru (Latest)` : (isOldest ? `● Keyframe Awal (Oldest)` : `● Frame Transaksi`);
 
@@ -1712,39 +2130,101 @@ function renderTableLedger() {
     tr.setAttribute('data-type', tx.type);
     if (isFrameActive) tr.classList.add('row-active-frame');
 
-    tr.innerHTML = `
-      <td class="timeline-rail-cell">
-        <div class="timeline-rail-wrapper ${isFirstRow ? 'is-first' : ''} ${isLastRow ? 'is-last' : ''}">
-          <div class="timeline-rail-line-top"></div>
-          <div class="timeline-rail-dot ${isFrameActive ? 'active' : ''}" data-tx-id="${tx.id}" title="${railTitle}">
-            <div class="timeline-rail-dot-core"></div>
+    if (!isTableDetailedMode) {
+      // Simple Mode (10 cols)
+      tr.innerHTML = `
+        <td class="timeline-rail-cell">
+          <div class="timeline-rail-wrapper ${isFirstRow ? 'is-first' : ''} ${isLastRow ? 'is-last' : ''}">
+            <div class="timeline-rail-line-top"></div>
+            <div class="timeline-rail-dot ${isFrameActive ? 'active' : ''}" data-tx-id="${tx.id}" title="${railTitle}">
+              <div class="timeline-rail-dot-core"></div>
+            </div>
+            <div class="timeline-rail-line-bottom"></div>
           </div>
-          <div class="timeline-rail-line-bottom"></div>
-        </div>
-      </td>
-      <td style="font-weight: 600; white-space: nowrap;">${i18n.formatDate(tx.date)}</td>
-      <td>
-        <span class="badge-tag tag-${tx.type}">${tx.type.toUpperCase()}</span>
-      </td>
-      <td class="${changeClass}">
-        ${changeSign}${i18n.formatCurrency(tx.amount)}
-        ${(tx.adminFee || tx.shippingFee) ? `<span style="font-size: 10px; color: #94a3b8; display: block; font-weight: 400;">(${tx.adminFee ? 'Adm: ' + i18n.formatCurrency(tx.adminFee) : ''}${tx.adminFee && tx.shippingFee ? ', ' : ''}${tx.shippingFee ? 'Ongkir: ' + i18n.formatCurrency(tx.shippingFee) : ''})</span>` : ''}
-      </td>
-      <td style="font-weight: 700; font-family: 'JetBrains Mono', monospace; color: #93c5fd;">
-        ${i18n.formatCurrency(runningBal)}
-      </td>
-      <td><span style="color: #cbd5e1; font-weight: 500;">${tx.fromLabel}</span></td>
-      <td><span style="color: #cbd5e1; font-weight: 500;">${tx.toLabel}</span></td>
-      <td><span class="badge-tag tag-pocket">${assignedPocket}</span></td>
-      <td style="color: var(--text-secondary); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-        ${tx.note || '-'}
-      </td>
-      <td style="white-space: nowrap; text-align: right;">
-        <button class="btn-action-icon btn-del-tx" data-id="${tx.id}" title="Hapus Transaksi" style="background: transparent; border: none; color: #ef4444; cursor: pointer; padding: 4px 6px;">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-        </button>
-      </td>
-    `;
+        </td>
+        <td style="font-weight: 600; white-space: nowrap;">${i18n.formatDate(tx.date)}</td>
+        <td>
+          <span class="badge-tag tag-${tx.type}">${tx.type.toUpperCase()}</span>
+        </td>
+        <td class="${changeClass}">
+          ${changeSign}${i18n.formatCurrency(baseAmount)}
+          ${(adminFee || shippingFee) ? `<span style="font-size: 10px; color: #94a3b8; display: block; font-weight: 400;">(${adminFee ? 'Adm: ' + i18n.formatCurrency(adminFee) : ''}${adminFee && shippingFee ? ', ' : ''}${shippingFee ? 'Ongkir: ' + i18n.formatCurrency(shippingFee) : ''})</span>` : ''}
+        </td>
+        <td style="font-weight: 700; font-family: 'JetBrains Mono', monospace; color: #93c5fd;">
+          ${i18n.formatCurrency(runningBal)}
+        </td>
+        <td><span style="color: #cbd5e1; font-weight: 500;">${fromSafe}</span></td>
+        <td><span style="color: #cbd5e1; font-weight: 500;">${toSafe}</span></td>
+        <td><span class="badge-tag tag-pocket">${assignedPocket}</span></td>
+        <td style="color: var(--text-secondary); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+          ${tx.note || '-'}
+        </td>
+        <td class="sticky-action-cell">
+          <div style="display: inline-flex; align-items: center; gap: 4px;">
+            <button class="btn-action-icon btn-edit-tx" data-id="${tx.id}" title="Edit Transaksi" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; color: #38bdf8; cursor: pointer; padding: 3px 6px; font-size: 11px;">
+              ✏️
+            </button>
+            <button class="btn-action-icon btn-dup-tx" data-id="${tx.id}" title="Duplikasi Transaksi Hari Ini" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; color: #a78bfa; cursor: pointer; padding: 3px 6px; font-size: 11px;">
+              📋
+            </button>
+            <button class="btn-action-icon btn-del-tx" data-id="${tx.id}" title="Hapus Transaksi" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; color: #ef4444; cursor: pointer; padding: 3px 6px; font-size: 11px;">
+              🗑️
+            </button>
+          </div>
+        </td>
+      `;
+    } else {
+      // Detailed Mode (13 cols)
+      tr.innerHTML = `
+        <td class="timeline-rail-cell">
+          <div class="timeline-rail-wrapper ${isFirstRow ? 'is-first' : ''} ${isLastRow ? 'is-last' : ''}">
+            <div class="timeline-rail-line-top"></div>
+            <div class="timeline-rail-dot ${isFrameActive ? 'active' : ''}" data-tx-id="${tx.id}" title="${railTitle}">
+              <div class="timeline-rail-dot-core"></div>
+            </div>
+            <div class="timeline-rail-line-bottom"></div>
+          </div>
+        </td>
+        <td style="font-weight: 600; white-space: nowrap;">${i18n.formatDate(tx.date)}</td>
+        <td>
+          <span class="badge-tag tag-${tx.type}">${tx.type.toUpperCase()}</span>
+        </td>
+        <td class="${changeClass}" style="font-family: 'JetBrains Mono', monospace; font-weight: 600;">
+          ${changeSign}${i18n.formatCurrency(baseAmount)}
+        </td>
+        <td style="color: ${adminFee ? '#f59e0b' : '#64748b'}; font-family: 'JetBrains Mono', monospace; font-size: 11px;">
+          ${adminFee ? i18n.formatCurrency(adminFee) : '-'}
+        </td>
+        <td style="color: ${shippingFee ? '#f59e0b' : '#64748b'}; font-family: 'JetBrains Mono', monospace; font-size: 11px;">
+          ${shippingFee ? i18n.formatCurrency(shippingFee) : '-'}
+        </td>
+        <td style="font-weight: 700; font-family: 'JetBrains Mono', monospace; color: ${isInc ? '#34d399' : (isExp ? '#f87171' : '#60a5fa')};">
+          ${changeSign}${i18n.formatCurrency(totalCash)}
+        </td>
+        <td style="font-weight: 700; font-family: 'JetBrains Mono', monospace; color: #93c5fd;">
+          ${i18n.formatCurrency(runningBal)}
+        </td>
+        <td><span style="color: #cbd5e1; font-weight: 500;">${fromSafe}</span></td>
+        <td><span style="color: #cbd5e1; font-weight: 500;">${toSafe}</span></td>
+        <td><span class="badge-tag tag-pocket">${assignedPocket}</span></td>
+        <td style="color: var(--text-secondary); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+          ${tx.note || '-'}
+        </td>
+        <td class="sticky-action-cell">
+          <div style="display: inline-flex; align-items: center; gap: 4px;">
+            <button class="btn-action-icon btn-edit-tx" data-id="${tx.id}" title="Edit Transaksi" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; color: #38bdf8; cursor: pointer; padding: 3px 6px; font-size: 11px;">
+              ✏️
+            </button>
+            <button class="btn-action-icon btn-dup-tx" data-id="${tx.id}" title="Duplikasi Transaksi Hari Ini" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; color: #a78bfa; cursor: pointer; padding: 3px 6px; font-size: 11px;">
+              📋
+            </button>
+            <button class="btn-action-icon btn-del-tx" data-id="${tx.id}" title="Hapus Transaksi" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; color: #ef4444; cursor: pointer; padding: 3px 6px; font-size: 11px;">
+              🗑️
+            </button>
+          </div>
+        </td>
+      `;
+    }
 
     // Click on timeline rail dot jumps timeline scrubber
     const railDot = tr.querySelector('.timeline-rail-dot');
@@ -1762,19 +2242,54 @@ function renderTableLedger() {
 
     // Click on row inspects the node
     tr.addEventListener('click', (e) => {
-      if (e.target.closest('.btn-del-tx') || e.target.closest('.timeline-rail-dot')) return;
+      if (e.target.closest('.sticky-action-cell') || e.target.closest('.timeline-rail-dot')) return;
       const targetNodeId = tx.type === 'expense' ? tx.toId : (tx.type === 'income' ? tx.fromId : tx.toId);
       if (targetNodeId) {
         inspectNode(targetNodeId);
       }
     });
 
-    // Hook delete
-    tr.querySelector('.btn-del-tx').addEventListener('click', (e) => {
+    // Hook Edit
+    tr.querySelector('.btn-edit-tx')?.addEventListener('click', (e) => {
       e.stopPropagation();
-      if (confirm(i18n.t('confirm_delete'))) {
-        store.deleteTransaction(tx.id);
-        showToast(i18n.t('toast_deleted'));
+      openEditTransactionModal(tx);
+    });
+
+    // Hook Duplicate
+    tr.querySelector('.btn-dup-tx')?.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const today = new Date().toISOString().split('T')[0];
+      const dupNote = tx.note ? `${tx.note} (Salinan)` : 'Salinan Transaksi';
+      await store.addTransaction({
+        type: tx.type,
+        fromId: tx.fromId,
+        fromLabel: fromSafe,
+        toId: tx.toId,
+        toLabel: toSafe,
+        amount: tx.amount,
+        adminFee: tx.adminFee || 0,
+        shippingFee: tx.shippingFee || 0,
+        date: today,
+        note: dupNote,
+        attachments: tx.attachments ? [...tx.attachments] : []
+      });
+      showToast('Transaksi berhasil diduplikasi untuk hari ini!');
+      renderTableLedger();
+      updateKPIs();
+      if (flowCanvas) flowCanvas.render();
+      if (timelineController) timelineController.refresh();
+    });
+
+    // Hook Delete
+    tr.querySelector('.btn-del-tx')?.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (confirm(i18n.t('confirm_delete') || 'Apakah Anda yakin ingin menghapus transaksi ini?')) {
+        await store.deleteTransaction(tx.id);
+        showToast(i18n.t('toast_deleted') || 'Transaksi telah dihapus');
+        renderTableLedger();
+        updateKPIs();
+        if (flowCanvas) flowCanvas.render();
+        if (timelineController) timelineController.refresh();
       }
     });
 
@@ -1791,9 +2306,22 @@ function updateViewLayout() {
 
   if (!container) return;
 
-  if (canvasWrapper) canvasWrapper.style.display = '';
-  if (inspectorSidebar) inspectorSidebar.style.display = '';
-  if (tableViewContainer) tableViewContainer.style.display = '';
+  // Reset custom widths from splitter dragging when changing perspective tabs
+  if (canvasWrapper) {
+    canvasWrapper.style.display = '';
+    canvasWrapper.style.width = '';
+    canvasWrapper.style.flex = '';
+  }
+  if (inspectorSidebar) {
+    inspectorSidebar.style.display = '';
+    inspectorSidebar.style.width = '';
+    inspectorSidebar.style.flex = '';
+  }
+  if (tableViewContainer) {
+    tableViewContainer.style.display = '';
+    tableViewContainer.style.width = '';
+    tableViewContainer.style.flex = '';
+  }
 
   container.classList.remove('mode-flow', 'mode-table', 'mode-split', 'inspector-hidden');
 
@@ -1828,11 +2356,15 @@ function initViewTabs() {
 }
 
 function initModeToggle() {
+  const modeSelect = document.getElementById('canvasModeSelect');
   const btnSimple = document.getElementById('btnModeSimple');
   const btnIRL = document.getElementById('btnModeIRL');
   const btnBoth = document.getElementById('btnModeBoth');
 
   const setModeActive = (mode) => {
+    if (modeSelect && modeSelect.value !== mode) {
+      modeSelect.value = mode;
+    }
     [btnSimple, btnIRL, btnBoth].forEach(btn => {
       if (btn) btn.classList.remove('active');
     });
@@ -1843,6 +2375,10 @@ function initModeToggle() {
 
     if (flowCanvas) flowCanvas.setMode(mode);
   };
+
+  modeSelect?.addEventListener('change', (e) => {
+    setModeActive(e.target.value);
+  });
 
   btnSimple?.addEventListener('click', () => setModeActive('simple'));
   btnIRL?.addEventListener('click', () => setModeActive('irl'));
@@ -1966,6 +2502,31 @@ function initModals() {
     closeAllModals();
     showToast('Transfer saldo berhasil!');
     e.target.reset();
+  });
+
+  document.getElementById('formEditTransaction')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('editTxId').value;
+    const date = document.getElementById('editTxDate').value;
+    const amount = document.getElementById('editTxAmount').value;
+    const adminFee = document.getElementById('editTxAdminFee').value;
+    const shippingFee = document.getElementById('editTxShippingFee').value;
+    const note = document.getElementById('editTxNote').value;
+
+    await store.updateTransaction(id, {
+      date,
+      amount: Number(amount) || 0,
+      adminFee: Number(adminFee) || 0,
+      shippingFee: Number(shippingFee) || 0,
+      note
+    });
+
+    closeAllModals();
+    showToast('Transaksi berhasil diperbarui!');
+    renderTableLedger();
+    updateKPIs();
+    if (flowCanvas) flowCanvas.render();
+    if (timelineController) timelineController.refresh();
   });
 
   document.getElementById('formAddPocket')?.addEventListener('submit', (e) => {

@@ -8,52 +8,87 @@
 </head>
 <body>
 
-  <!-- Top Navigation Bar -->
-  <header class="top-navbar">
-    <div class="brand-section">
-      <div class="brand-logo">SP</div>
-      <div>
-        <div class="brand-title">
-          <span data-i18n="app_title">Student Pocket Manager</span>
-          <span class="brand-badge">v04 Brief</span>
+  <!-- Row 1: Master Executive Navigation & Control Header -->
+  <header class="top-navbar row-master-header">
+    <!-- Left: Brand & Action Controls -->
+    <div class="header-left-group">
+      <div class="brand-section">
+        <div class="brand-logo">SP</div>
+        <div>
+          <div class="brand-title">
+            <span data-i18n="app_title">Student Pocket</span>
+            <span class="brand-badge">v05 Pro</span>
+          </div>
         </div>
+      </div>
+
+      <!-- Add Data Controls -->
+      <div class="header-action-buttons">
+        <button id="btnOpenAddIncome" class="btn-action btn-income" title="Catat Pemasukan Baru">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>
+          <span data-i18n="btn_income">+ Masuk</span>
+        </button>
+
+        <button id="btnOpenAddExpense" class="btn-action btn-expense" title="Catat Pengeluaran Baru">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" x2="19" y1="12" y2="12"/></svg>
+          <span data-i18n="btn_expense">- Keluar</span>
+        </button>
+
+        <button id="btnOpenTransfer" class="btn-action btn-transfer" title="Pindah Saldo Antar Kantong">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>
+          <span data-i18n="btn_transfer">⇄ Transfer</span>
+        </button>
+
+        <button id="btnOpenAddPocket" class="btn-action btn-pocket" title="Tambah Kantong Baru">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect width="18" height="14" x="3" y="5" rx="3"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+          <span data-i18n="btn_account">+ Kantong</span>
+        </button>
       </div>
     </div>
 
-    <!-- Center View Tabs -->
-    <nav class="nav-center">
-      <button class="nav-tab-btn active" data-view-tab="flow">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M6 9v12"/><path d="M18 9a9 9 0 0 0-9 9"/></svg>
-        <span data-i18n="view_flow">Kanvas Alur</span>
-      </button>
-      <button class="nav-tab-btn" data-view-tab="table">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>
-        <span data-i18n="view_ledger">Buku Kas (Table View)</span>
-      </button>
-      <button class="nav-tab-btn" data-view-tab="split">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><line x1="12" x2="12" y1="3" y2="21"/></svg>
-        <span>Split View</span>
-      </button>
-    </nav>
+    <!-- Center: View Radio Tabs & Flow Config Dropdowns -->
+    <div class="header-center-group">
+      <!-- 3-Way Perspective View Tabs (Flow / Split / Table) -->
+      <nav class="nav-center view-tabs-group">
+        <button class="nav-tab-btn active" data-view-tab="flow" title="Kanvas Alur Penuh (100% / 80-20)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M6 9v12"/><path d="M18 9a9 9 0 0 0-9 9"/></svg>
+          <span data-i18n="view_flow">Flow</span>
+        </button>
+        <button class="nav-tab-btn" data-view-tab="split" title="Split View Seimbang (40-20-40 / 50-50)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><line x1="12" x2="12" y1="3" y2="21"/></svg>
+          <span>Split</span>
+        </button>
+        <button class="nav-tab-btn" data-view-tab="table" title="Buku Kas Akuntansi Penuh (100%)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>
+          <span data-i18n="view_ledger">Table</span>
+        </button>
+      </nav>
 
-    <!-- Right Controls: Mode Toggle, i18n, Export, User Switcher -->
-    <div class="nav-actions">
-      <!-- 3-Way Mode Toggle (Simple / IRL / Both) -->
-      <div class="mode-toggle-group">
-        <button id="btnModeSimple" class="mode-btn" data-i18n="mode_simple">Simple</button>
-        <button id="btnModeIRL" class="mode-btn" data-i18n="mode_irl">IRL Flow</button>
-        <button id="btnModeBoth" class="mode-btn active" data-i18n="mode_both">Both (Total + IRL)</button>
-      </div>
+      <!-- Canvas Flow Mode Dropdown (Simple | IRL | Both) -->
+      <select id="canvasModeSelect" class="form-select header-dropdown" title="Pilihan Mode Kanvas">
+        <option value="both" selected>Mode: Both (Total + IRL)</option>
+        <option value="irl">Mode: IRL Flow Saja</option>
+        <option value="simple">Mode: Simple 3-Kolom</option>
+      </select>
 
+      <!-- Scope Filter Dropdown (All vs Filtered Pockets) -->
+      <select id="scopeSelect" class="form-select header-dropdown" title="Lingkup Transaksi">
+        <option value="all" selected>Scope: Semua Transaksi</option>
+        <option value="filtered">Scope: Kantong Terpilih Saja</option>
+      </select>
+    </div>
+
+    <!-- Right: Language, Export Engine, and Account Switcher -->
+    <div class="header-right-group">
       <!-- Language Toggle -->
-      <button id="langToggle" class="mode-btn" style="background: rgba(255,255,255,0.05); color: #cbd5e1; border: 1px solid var(--border-color); padding: 5px 10px;">
+      <button id="langToggle" class="mode-btn header-btn-pill" title="Ganti Bahasa">
         🇮🇩 ID
       </button>
 
       <!-- Dual Export Menu (Brief v04 Sec 7) -->
       <div style="position: relative;">
-        <button id="exportMenuTrigger" class="mode-btn" style="background: rgba(255,255,255,0.05); color: #cbd5e1; border: 1px solid var(--border-color); display: flex; align-items: center; gap: 4px; padding: 5px 12px;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+        <button id="exportMenuTrigger" class="mode-btn header-btn-pill" style="display: flex; align-items: center; gap: 4px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
           <span data-i18n="export_menu">Ekspor</span>
           <span>▾</span>
         </button>
@@ -101,68 +136,55 @@
     </div>
   </header>
 
-  <!-- KPI Overview Bar -->
-  <section class="kpi-section">
-    <div class="kpi-card">
+  <!-- Row 2: Financial Flow KPI Bar (Mental Model: Inflow ➔ Net Pocket Balance ➔ Outflow) -->
+  <section class="kpi-section kpi-flow-order">
+    <!-- 1. Total Inflow (Green) -->
+    <div class="kpi-card kpi-card-inflow">
       <div>
-        <div class="kpi-label" data-i18n="total_balance">Total Saldo Semua Kantong</div>
-        <div id="kpiTotalBalance" class="kpi-value balance">Rp 0</div>
-      </div>
-      <div class="kpi-icon blue">💰</div>
-    </div>
-
-    <div class="kpi-card">
-      <div>
-        <div class="kpi-label" data-i18n="total_income">Total Dana Masuk</div>
+        <div class="kpi-label" data-i18n="total_income">Total Dana Masuk (Inflow)</div>
         <div id="kpiTotalIncome" class="kpi-value income">+Rp 0</div>
       </div>
       <div class="kpi-icon green">📥</div>
     </div>
 
-    <div class="kpi-card">
+    <!-- 2. Net Pocket Balance (Blue) with Dropdown Toggle Checklist -->
+    <div class="kpi-card kpi-card-balance" style="position: relative;">
+      <div style="flex: 1;">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+          <div class="kpi-label" data-i18n="total_balance">Net Pocket Balance</div>
+          <!-- Dropdown toggle button for pockets -->
+          <button type="button" id="btnPocketFilterToggle" class="kpi-pocket-toggle-btn" title="Pilih kantong yang dihitung & ditampilkan">
+            <span id="kpiIncludedPocketsCount">Semua Kantong</span> ▾
+          </button>
+        </div>
+        <div id="kpiTotalBalance" class="kpi-value balance">Rp 0</div>
+      </div>
+      <div class="kpi-icon blue">💰</div>
+
+      <!-- Floating Pocket Checklist Popover -->
+      <div id="kpiPocketFilterPopover" class="kpi-pocket-popover" style="display: none;">
+        <div class="popover-header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 6px;">
+          <span style="font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Tampilkan di Panel:</span>
+          <button type="button" id="btnToggleAllPockets" style="background: none; border: none; color: #38bdf8; font-size: 10px; cursor: pointer; font-weight: 700;">Semua</button>
+        </div>
+        <div id="kpiPocketChecklist" class="kpi-pocket-checklist" style="display: flex; flex-direction: column; gap: 4px; max-height: 200px; overflow-y: auto;">
+          <!-- Dynamically populated from app.js -->
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. Total Outflow (Red) -->
+    <div class="kpi-card kpi-card-outflow">
       <div>
-        <div class="kpi-label" data-i18n="total_expense">Total Dana Keluar</div>
+        <div class="kpi-label" data-i18n="total_expense">Total Dana Keluar (Outflow)</div>
         <div id="kpiTotalExpense" class="kpi-value expense">-Rp 0</div>
       </div>
       <div class="kpi-icon red">📤</div>
     </div>
-
-    <div class="kpi-card">
-      <div>
-        <div class="kpi-label" data-i18n="active_pockets">Kantong Aktif</div>
-        <div id="kpiPocketCount" class="kpi-value" style="color: #c084fc;">3 Pockets</div>
-      </div>
-      <div class="kpi-icon purple">💳</div>
-    </div>
   </section>
 
-  <!-- Quick Action Toolbar -->
-  <section class="toolbar-section">
-    <div class="action-buttons-group">
-      <button id="btnOpenAddIncome" class="btn-action btn-income">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>
-        <span data-i18n="btn_income">+ Pemasukan</span>
-      </button>
-
-      <button id="btnOpenAddExpense" class="btn-action btn-expense">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" x2="19" y1="12" y2="12"/></svg>
-        <span data-i18n="btn_expense">- Pengeluaran</span>
-      </button>
-
-      <button id="btnOpenTransfer" class="btn-action btn-transfer">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>
-        <span data-i18n="btn_transfer">⇄ Pindah Saldo</span>
-      </button>
-
-      <button id="btnOpenAddPocket" class="btn-action btn-pocket">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect width="18" height="14" x="3" y="5" rx="3"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
-        <span data-i18n="btn_account">+ Kantong Baru</span>
-      </button>
-    </div>
-  </section>
-
-  <!-- Master Workspace: Flow Canvas + Node Inspector -->
-  <main class="workspace-container">
+  <!-- Row 3: Resizable Master Workspace Panels with Drag Splitters -->
+  <main id="workspaceContainer" class="workspace-container">
     <!-- Flow Canvas Section -->
     <section id="canvasWrapper" class="canvas-wrapper">
       <div class="canvas-header">
@@ -223,6 +245,9 @@
       </div>
     </section>
 
+    <!-- Resizable Splitter 1: Canvas to Inspector/Table -->
+    <div id="splitterCanvas" class="panel-splitter" title="Geser untuk ubah lebar panel"></div>
+
     <!-- Node Inspector Sidebar (Fixed 380px Desktop) -->
     <aside id="inspectorSidebar" class="inspector-sidebar">
       <div class="inspector-header">
@@ -247,6 +272,9 @@
       </div>
     </aside>
 
+    <!-- Resizable Splitter 2: Inspector to Table -->
+    <div id="splitterInspector" class="panel-splitter" title="Geser untuk ubah lebar panel"></div>
+
     <!-- Precision Table View (Brief v04 Section 4.2) -->
     <section id="tableViewContainer" class="table-view-container">
       <div class="table-toolbar">
@@ -264,6 +292,14 @@
               <option value="table">📋 Sorot Baris Tabel Saja</option>
               <option value="inspector">📌 Buka Inspector Saja</option>
             </select>
+          </div>
+
+          <!-- Table Detail Mode Toggle (Simple vs Detailed Raw Columns) -->
+          <div class="table-detail-mode-group" style="display: flex; align-items: center; gap: 6px;">
+            <button type="button" id="btnToggleTableDetailMode" class="btn-action-icon" title="Toggle antara Tampilan Ringkas dan Mode Rinci (Raw Data)" style="background: rgba(15, 23, 42, 0.8); border: 1px solid var(--border-color); color: #cbd5e1; font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; transition: all 0.2s; white-space: nowrap;">
+              <span id="tableDetailIcon" style="font-size: 11px;">📑</span>
+              <span id="tableDetailLabel">Detailed Mode</span>
+            </button>
           </div>
 
           <!-- Sort Order Toggle (Latest First vs Oldest First) -->
@@ -286,7 +322,7 @@
       <div class="ledger-table-wrapper">
         <table class="ledger-table">
           <thead>
-            <tr>
+            <tr id="tableHeaderRow">
               <th style="width: 38px; text-align: center;" title="Rel Timeline Vertikal">TIMELINE</th>
               <th data-i18n="ledger_date" id="thSortDate" style="cursor: pointer; user-select: none;" title="Klik untuk ubah urutan tanggal (Terbaru / Terlama)">
                 <span style="display: inline-flex; align-items: center; gap: 4px;">
@@ -301,7 +337,7 @@
               <th data-i18n="ledger_to">Tujuan</th>
               <th>Kantong Terkait</th>
               <th data-i18n="ledger_note">Catatan</th>
-              <th data-i18n="ledger_actions" style="text-align: right;">Aksi</th>
+              <th data-i18n="ledger_actions" style="text-align: right; position: sticky; right: 0; background: #0f172a; z-index: 3;">Aksi</th>
             </tr>
             <!-- Interactive Inline Quick-Add Row below header -->
             <tr id="tableQuickAddRow" class="table-quick-add-row">
@@ -425,6 +461,47 @@
         <div class="modal-footer">
           <button type="button" class="btn-action" style="background: #334155; color: white;" data-close-modal data-i18n="btn_cancel">Batal</button>
           <button type="submit" class="btn-action btn-expense" data-i18n="btn_save">Simpan Transaksi</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Edit Transaction -->
+  <div id="modalEditTransaction" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">Edit Transaksi</h3>
+        <button class="btn-close-modal" data-close-modal>&times;</button>
+      </div>
+      <form id="formEditTransaction">
+        <input type="hidden" id="editTxId">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Tanggal Transaksi</label>
+            <input type="date" id="editTxDate" class="form-input" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Nominal Pokok (Rp)</label>
+            <input type="number" id="editTxAmount" class="form-input" min="1" required>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Biaya Admin (Rp)</label>
+              <input type="number" id="editTxAdminFee" class="form-input" min="0" value="0">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Ongkos Kirim (Rp)</label>
+              <input type="number" id="editTxShippingFee" class="form-input" min="0" value="0">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Catatan</label>
+            <input type="text" id="editTxNote" class="form-input" placeholder="Keterangan transaksi...">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-action" style="background: #334155; color: white;" data-close-modal>Batal</button>
+          <button type="submit" class="btn-action" style="background: #2563eb; color: white;">Simpan Perubahan</button>
         </div>
       </form>
     </div>

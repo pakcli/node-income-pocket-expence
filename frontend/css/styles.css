@@ -1858,6 +1858,156 @@ body {
   color: #fef08a !important;
 }
 
+/* Row 1: Unified Master Header */
+.row-master-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 16px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-color);
+  flex-wrap: wrap;
+}
+
+.header-left-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.header-action-buttons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.header-action-buttons .btn-action {
+  padding: 5px 10px;
+  font-size: 11px;
+}
+
+.header-center-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.header-dropdown {
+  padding: 4px 8px;
+  font-size: 11px;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid var(--border-color);
+  color: #cbd5e1;
+  border-radius: 6px;
+  width: auto;
+}
+
+.header-right-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-btn-pill {
+  background: rgba(255, 255, 255, 0.05);
+  color: #cbd5e1;
+  border: 1px solid var(--border-color);
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 6px;
+}
+
+/* Row 2: Financial Flow KPI Bar */
+.kpi-section.kpi-flow-order {
+  display: grid;
+  grid-template-columns: 1fr 1.25fr 1fr;
+  gap: 12px;
+  padding: 8px 16px 4px 16px;
+}
+
+.kpi-pocket-toggle-btn {
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  color: #38bdf8;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s;
+}
+
+.kpi-pocket-toggle-btn:hover {
+  background: rgba(56, 189, 248, 0.25);
+  border-color: #38bdf8;
+}
+
+.kpi-pocket-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  min-width: 260px;
+  background: #0f172a;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
+  z-index: 100;
+  padding: 10px;
+}
+
+/* Row 3: Panel Resizable Splitters */
+.panel-splitter {
+  width: 6px;
+  min-width: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  cursor: col-resize;
+  transition: background 0.2s;
+  user-select: none;
+  position: relative;
+  z-index: 10;
+}
+
+.panel-splitter:hover,
+.panel-splitter.dragging {
+  background: #38bdf8;
+  box-shadow: 0 0 10px #38bdf8;
+}
+
+/* Splitter visibility based on active view mode */
+.workspace-container.mode-flow #splitterInspector,
+.workspace-container.mode-table .panel-splitter,
+.workspace-container.mode-flow.inspector-hidden #splitterCanvas,
+.workspace-container.mode-split.inspector-hidden #splitterInspector {
+  display: none !important;
+}
+
+/* Sticky Action Column in Table */
+.sticky-action-cell {
+  position: sticky;
+  right: 0;
+  background: #0f172a;
+  white-space: nowrap;
+  text-align: right;
+  box-shadow: -4px 0 8px rgba(0, 0, 0, 0.35);
+  z-index: 2;
+}
+
+.ledger-table thead th:last-child {
+  position: sticky;
+  right: 0;
+  background: #0f172a;
+  box-shadow: -4px 0 8px rgba(0, 0, 0, 0.35);
+  z-index: 3;
+}
+
+
 
 
 
