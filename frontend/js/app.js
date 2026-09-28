@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initUserSwitcher();
   initKPIs();
   initModals();
+  initInspector();
   initTableLedger();
   initViewTabs();
   initModeToggle();
@@ -172,7 +173,115 @@ function updateKPIs() {
   if (pktEl) pktEl.textContent = `${pocketCount} Pockets`;
 }
 
-// 5. Node Inspector
+// 5. Node Inspector & Strict Panel Editing
+function initInspector() {
+  const btnAdd = document.getElementById('btnPanelAddNode');
+  if (btnAdd) {
+    btnAdd.addEventListener('click', () => {
+      renderPanelCreateNodeForm();
+    });
+  }
+}
+
+function renderPanelCreateNodeForm() {
+  const body = document.getElementById('inspectorBody');
+  if (!body) return;
+
+  body.innerHTML = `
+    <div class="inspector-node-card" style="border-left: 3px solid #3b82f6;">
+      <h3 style="font-size: 15px; font-weight: 700; color: #f8fafc; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+        <span>📦</span>
+        <span>Tambah Node Baru</span>
+      </h3>
+
+      <form id="formPanelCreateNode" style="display: flex; flex-direction: column; gap: 12px;">
+        <div class="form-group">
+          <label class="form-label">Tipe Node</label>
+          <select id="panelNodeType" class="form-select">
+            <option value="account">Kantong & Rekening (Pocket)</option>
+            <option value="income">Sumber Pemasukan (Income)</option>
+            <option value="expense">Pos Pengeluaran (Expense)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Nama Node</label>
+          <input type="text" id="panelNodeLabel" class="form-input" placeholder="Cth: Dompet Kost, Tabungan, Gaji" required>
+        </div>
+
+        <div id="panelPocketCategoryGroup" class="form-group">
+          <label class="form-label">Kategori Dompet</label>
+          <select id="panelNodeCategory" class="form-select">
+            <option value="cash">Uang Tunai / Dompet Fisik</option>
+            <option value="bank">Rekening Bank (BCA, Mandiri, dll)</option>
+            <option value="e_wallet">E-Wallet (GoPay, OVO, ShopeePay)</option>
+            <option value="savings">Tabungan / Dana Darurat</option>
+          </select>
+        </div>
+
+        <div id="panelPocketBalanceGroup" class="form-group">
+          <label class="form-label">Saldo Awal (Rp)</label>
+          <input type="number" id="panelNodeBalance" class="form-input" placeholder="0" min="0" value="0">
+        </div>
+
+        <div style="display: flex; gap: 8px; margin-top: 8px;">
+          <button type="button" id="btnCancelPanelCreate" class="btn-action" style="flex: 1; background: #334155; color: white;">
+            Batal
+          </button>
+          <button type="submit" class="btn-action btn-income" style="flex: 2;">
+            + Buat Node
+          </button>
+        </div>
+      </form>
+    </div>
+  `;
+
+  // Toggle pocket fields based on type
+  const typeSelect = document.getElementById('panelNodeType');
+  const catGroup = document.getElementById('panelPocketCategoryGroup');
+  const balGroup = document.getElementById('panelPocketBalanceGroup');
+
+  typeSelect.addEventListener('change', () => {
+    const isPkt = typeSelect.value === 'account';
+    catGroup.style.display = isPkt ? 'flex' : 'none';
+    balGroup.style.display = isPkt ? 'flex' : 'none';
+  });
+
+  document.getElementById('btnCancelPanelCreate').addEventListener('click', () => {
+    if (flowCanvas && flowCanvas.selectedNodeId) {
+      inspectNode(flowCanvas.selectedNodeId);
+    } else {
+      body.innerHTML = `
+        <div class="inspector-empty-state">
+          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+          <p>${i18n.t('inspector_empty')}</p>
+        </div>
+      `;
+    }
+  });
+
+  document.getElementById('formPanelCreateNode').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const type = typeSelect.value;
+    const label = document.getElementById('panelNodeLabel').value.trim();
+    const category = document.getElementById('panelNodeCategory').value;
+    const initialBalance = document.getElementById('panelNodeBalance').value;
+
+    const newId = await store.addNode({
+      type,
+      label,
+      category: type === 'account' ? category : null,
+      initialBalance: type === 'account' ? initialBalance : 0
+    });
+
+    showToast(`Node "${label}" berhasil ditambahkan!`);
+    if (flowCanvas) {
+      flowCanvas.render();
+      flowCanvas.selectNode(newId);
+    }
+  });
+}
+
 function inspectNode(nodeId) {
   const body = document.getElementById('inspectorBody');
   if (!body) return;
@@ -202,12 +311,14 @@ function inspectNode(nodeId) {
   const txs = store.getNodeLedger(nodeId);
 
   body.innerHTML = `
+    <!-- 1. Node Statistics & Info Card -->
     <div class="inspector-node-card">
       <div style="display: flex; align-items: center; justify-content: space-between;">
-        <span class="badge-tag tag-${type}">${type.toUpperCase()}</span>
-        <span style="font-size: 11px; color: var(--text-muted);">${node.category ? node.category.toUpperCase() : ''}</span>
+        <span class="badge-tag tag-${type}">${type.toUpperCase()} NODE</span>
+        <span style="font-size: 11px; color: var(--text-muted); font-weight: 600;">ID: ${node.id}</span>
       </div>
-      <h3 style="margin-top: 8px; font-size: 17px; font-weight: 700;">${node.label}</h3>
+      <h3 style="margin-top: 8px; font-size: 17px; font-weight: 800; color: #f8fafc;">${node.label}</h3>
+
       <div class="inspector-stat-grid">
         ${type === 'account' ? `
           <div class="inspector-stat-box">
@@ -229,9 +340,47 @@ function inspectNode(nodeId) {
       </div>
     </div>
 
+    <!-- 2. Strict Panel Data Editor -->
+    <div class="inspector-node-card" style="border: 1px solid rgba(59, 130, 246, 0.3);">
+      <h4 style="font-size: 13px; font-weight: 700; color: #93c5fd; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+        <span>✏️</span>
+        <span>Edit Data Node (Panel Editor)</span>
+      </h4>
+
+      <form id="formPanelEditNode" style="display: flex; flex-direction: column; gap: 10px;">
+        <div class="form-group">
+          <label class="form-label">Nama Node</label>
+          <input type="text" id="editNodeLabelInput" class="form-input" value="${node.label}" required>
+        </div>
+
+        ${type === 'account' ? `
+          <div class="form-group">
+            <label class="form-label">Tipe Dompet</label>
+            <select id="editNodeCategorySelect" class="form-select">
+              <option value="cash" ${node.category === 'cash' ? 'selected' : ''}>Uang Tunai / Dompet Fisik</option>
+              <option value="bank" ${node.category === 'bank' ? 'selected' : ''}>Rekening Bank</option>
+              <option value="e_wallet" ${node.category === 'e_wallet' ? 'selected' : ''}>E-Wallet</option>
+              <option value="savings" ${node.category === 'savings' ? 'selected' : ''}>Tabungan</option>
+            </select>
+          </div>
+        ` : ''}
+
+        <div style="display: flex; gap: 8px; margin-top: 6px;">
+          <button type="submit" class="btn-action btn-income" style="flex: 2; padding: 7px 12px; font-size: 12px;">
+            💾 Simpan Perubahan
+          </button>
+          <button type="button" id="btnPanelDeleteNode" class="btn-action btn-expense" style="flex: 1; padding: 7px 12px; font-size: 12px;">
+            🗑️ Hapus
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- 3. Transaction History & Note Editor -->
     <div>
-      <h4 style="font-size: 13px; font-weight: 700; margin-bottom: 10px; color: var(--text-secondary);">
-        ${i18n.t('inspector_history')} (${txs.length})
+      <h4 style="font-size: 13px; font-weight: 700; margin-bottom: 10px; color: var(--text-secondary); display: flex; justify-content: space-between; align-items: center;">
+        <span>${i18n.t('inspector_history')} (${txs.length})</span>
+        <span style="font-size: 11px; color: var(--text-muted); font-weight: 500;">Klik ✏️ untuk edit catatan</span>
       </h4>
       <div style="display: flex; flex-direction: column; gap: 8px; max-height: 280px; overflow-y: auto;">
         ${txs.length === 0 ? `<p style="font-size: 12px; color: var(--text-muted);">${i18n.t('no_transactions')}</p>` : ''}
@@ -243,15 +392,85 @@ function inspectNode(nodeId) {
                 ${t.type === 'income' ? '+' : '-'}${i18n.formatCurrency(t.amount)}
               </span>
             </div>
-            <div style="color: var(--text-muted); margin-top: 4px;">
+            <div style="color: var(--text-muted); margin-top: 4px; font-size: 11px;">
               ${t.fromLabel} &rarr; ${t.toLabel}
             </div>
-            ${t.note ? `<div style="color: var(--text-secondary); margin-top: 2px; font-style: italic;">"${t.note}"</div>` : ''}
+
+            <!-- Note View & Inline Editor -->
+            <div id="tx-note-wrapper-${t.id}" style="margin-top: 6px; padding-top: 4px; border-top: 1px dashed rgba(255,255,255,0.06); display: flex; justify-content: space-between; align-items: center;">
+              <span id="tx-note-text-${t.id}" style="color: var(--text-secondary); font-style: italic;">
+                "${t.note || 'Tidak ada catatan'}"
+              </span>
+              <button class="btn-inline-edit-note" data-txid="${t.id}" style="background: transparent; border: none; color: #38bdf8; font-size: 11px; cursor: pointer; padding: 2px 6px;">
+                ✏️ Edit
+              </button>
+            </div>
           </div>
         `).join('')}
       </div>
     </div>
   `;
+
+  // Hook Edit Node Save
+  document.getElementById('formPanelEditNode')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const newLabel = document.getElementById('editNodeLabelInput').value.trim();
+    const categorySelect = document.getElementById('editNodeCategorySelect');
+    const newCategory = categorySelect ? categorySelect.value : undefined;
+
+    await store.updateNode(nodeId, { label: newLabel, category: newCategory });
+    showToast(`Data node "${newLabel}" berhasil diperbarui!`);
+    if (flowCanvas) flowCanvas.render();
+    inspectNode(nodeId);
+  });
+
+  // Hook Delete Node
+  document.getElementById('btnPanelDeleteNode')?.addEventListener('click', async () => {
+    if (confirm(`Apakah Anda yakin ingin menghapus node "${node.label}" beserta transaksinya?`)) {
+      await store.deleteNode(nodeId);
+      showToast(`Node "${node.label}" berhasil dihapus.`);
+      if (flowCanvas) {
+        flowCanvas.selectedNodeId = null;
+        flowCanvas.render();
+      }
+      body.innerHTML = `
+        <div class="inspector-empty-state">
+          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+          <p>Node telah dihapus. Klik node lain untuk inspeksi.</p>
+        </div>
+      `;
+    }
+  });
+
+  // Hook Inline Note Editors
+  document.querySelectorAll('.btn-inline-edit-note').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const txId = btn.getAttribute('data-txid');
+      const wrapper = document.getElementById(`tx-note-wrapper-${txId}`);
+      const tx = store.state.transactions.find(t => t.id === txId);
+      if (!wrapper || !tx) return;
+
+      wrapper.innerHTML = `
+        <div style="display: flex; gap: 4px; width: 100%; margin-top: 4px;">
+          <input type="text" id="inline-note-input-${txId}" class="form-input" value="${tx.note || ''}" style="padding: 4px 8px; font-size: 11px; flex: 1;">
+          <button id="btn-save-note-${txId}" class="btn-action btn-income" style="padding: 4px 8px; font-size: 11px;">OK</button>
+          <button id="btn-cancel-note-${txId}" class="btn-action" style="padding: 4px 6px; font-size: 11px; background: #334155; color: white;">✕</button>
+        </div>
+      `;
+
+      document.getElementById(`btn-cancel-note-${txId}`)?.addEventListener('click', () => {
+        inspectNode(nodeId);
+      });
+
+      document.getElementById(`btn-save-note-${txId}`)?.addEventListener('click', async () => {
+        const val = document.getElementById(`inline-note-input-${txId}`).value.trim();
+        await store.updateTransactionNote(txId, val);
+        showToast('Catatan transaksi berhasil diperbarui!');
+        inspectNode(nodeId);
+        renderTableLedger();
+      });
+    });
+  });
 }
 
 // 6. Precision Table Ledger (Brief v04 Sec 4.2)

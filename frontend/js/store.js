@@ -293,6 +293,132 @@ class Store {
     } catch (e) {}
   }
 
+  async addNode({ type, label, category, initialBalance = 0, color }) {
+    const id = (type === 'account' ? 'pkt_' : (type === 'income' ? 'inc_' : 'exp_')) + Date.now();
+    const balance = Number(initialBalance) || 0;
+
+    if (type === 'account') {
+      this.state.pockets.push({
+        id,
+        label,
+        category: category || 'cash',
+        initialBalance: balance,
+        balance,
+        color: color || '#3b82f6',
+        inflow: 0,
+        outflow: 0
+      });
+    } else if (type === 'income') {
+      this.state.incomeSources.push({
+        id,
+        label,
+        total: 0
+      });
+    } else if (type === 'expense') {
+      this.state.expenseCategories.push({
+        id,
+        label,
+        total: 0
+      });
+    }
+
+    this.saveState();
+
+    try {
+      const headers = { 'Content-Type': 'application/json', ...accountManager.getAuthHeader() };
+      await fetch('/api/nodes', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ label, type, accountCategory: category, initialBalance: balance, color })
+      });
+    } catch (e) {}
+
+    return id;
+  }
+
+  async updateNode(id, { label, category, color }) {
+    let found = false;
+
+    // Search pockets
+    const pkt = this.state.pockets.find(p => p.id === id);
+    if (pkt) {
+      if (label) pkt.label = label;
+      if (category) pkt.category = category;
+      if (color) pkt.color = color;
+      found = true;
+    }
+
+    // Search incomes
+    const inc = this.state.incomeSources.find(i => i.id === id);
+    if (inc) {
+      if (label) inc.label = label;
+      found = true;
+    }
+
+    // Search expenses
+    const exp = this.state.expenseCategories.find(e => e.id === id);
+    if (exp) {
+      if (label) exp.label = label;
+      found = true;
+    }
+
+    if (found) {
+      // Also update labels in transactions
+      if (label) {
+        this.state.transactions.forEach(t => {
+          if (t.fromId === id) t.fromLabel = label;
+          if (t.toId === id) t.toLabel = label;
+        });
+      }
+      this.saveState();
+
+      try {
+        const headers = { 'Content-Type': 'application/json', ...accountManager.getAuthHeader() };
+        await fetch(`/api/nodes/${id}`, {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify({ label, accountCategory: category, color })
+        });
+      } catch (e) {}
+    }
+  }
+
+  async deleteNode(id) {
+    this.state.pockets = this.state.pockets.filter(p => p.id !== id);
+    this.state.incomeSources = this.state.incomeSources.filter(i => i.id !== id);
+    this.state.expenseCategories = this.state.expenseCategories.filter(e => e.id !== id);
+
+    // Remove transactions attached to this node
+    this.state.transactions = this.state.transactions.filter(t => t.fromId !== id && t.toId !== id);
+
+    this.saveState();
+
+    try {
+      const headers = accountManager.getAuthHeader();
+      await fetch(`/api/nodes/${id}`, {
+        method: 'DELETE',
+        headers
+      });
+    } catch (e) {}
+  }
+
+  async updateTransactionNote(txId, newNote) {
+    const tx = this.state.transactions.find(t => t.id === txId);
+    if (tx) {
+      tx.note = newNote;
+      this.saveState();
+
+      try {
+        const headers = { 'Content-Type': 'application/json', ...accountManager.getAuthHeader() };
+        await fetch(`/api/transactions/${txId}/note`, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({ note: newNote })
+        });
+      } catch (e) {}
+    }
+  }
+
   getTotalBalance() {
     return this.state.pockets.reduce((sum, p) => sum + (p.balance || 0), 0);
   }

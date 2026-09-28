@@ -174,4 +174,22 @@ router.delete('/:id', (req, res) => {
   }
 });
 
+// PATCH /api/transactions/:id/note - Update transaction note
+router.patch('/:id/note', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { note } = req.body;
+
+    const result = db.prepare('UPDATE transactions SET note = ? WHERE id = ? AND user_id = ?').run(note || '', id, req.user.id);
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Transaksi tidak ditemukan.' });
+    }
+
+    res.json({ message: 'Catatan transaksi berhasil diperbarui.', note });
+  } catch (err) {
+    console.error('Error updating note:', err);
+    res.status(500).json({ error: 'Gagal memperbarui catatan.' });
+  }
+});
+
 module.exports = router;
