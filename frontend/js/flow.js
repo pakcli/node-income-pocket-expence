@@ -1,5 +1,5 @@
-// Flow Canvas Engine
-// Renders Simple Mode (3-column pipeline) and IRL Mode (network graph with transfers)
+// Flow Canvas Engine - Blender Node Style (Brief v04)
+// Renders Blender-inspired shader/geometry nodes with custom headers, current values, and labeled input/output sockets
 
 import { store } from './store.js';
 import { i18n } from './i18n.js';
@@ -32,7 +32,7 @@ export class FlowCanvas {
     this.container.innerHTML = '';
 
     const width = this.container.clientWidth || 800;
-    const height = Math.max(540, this.container.clientHeight || 540);
+    const height = Math.max(560, this.container.clientHeight || 560);
 
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('width', '100%');
@@ -40,30 +40,32 @@ export class FlowCanvas {
     svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
     svg.classList.add('flow-svg');
 
-    // Defs for marker arrows & gradients
+    // Defs for Blender-style filters, markers & gradients
     const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
     defs.innerHTML = `
-      <marker id="arrow-green" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-        <path d="M 0 1 L 10 5 L 0 9 z" fill="#10b981" />
+      <!-- Drop Shadow for Blender Nodes -->
+      <filter id="blender-shadow" x="-15%" y="-15%" width="130%" height="130%">
+        <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#000000" flood-opacity="0.55" />
+      </filter>
+
+      <!-- Selection Glow for Active Blender Node -->
+      <filter id="blender-glow" x="-20%" y="-20%" width="140%" height="140%">
+        <feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="#f97316" flood-opacity="0.85" />
+      </filter>
+
+      <!-- Smooth Socket Arrow Markers -->
+      <marker id="socket-arrow-green" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#10b981" />
       </marker>
-      <marker id="arrow-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-        <path d="M 0 1 L 10 5 L 0 9 z" fill="#ef4444" />
+      <marker id="socket-arrow-blue" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#38bdf8" />
       </marker>
-      <marker id="arrow-purple" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-        <path d="M 0 1 L 10 5 L 0 9 z" fill="#8b5cf6" />
+      <marker id="socket-arrow-red" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#f87171" />
       </marker>
-      <linearGradient id="grad-income" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stop-color="#ecfdf5" />
-        <stop offset="100%" stop-color="#d1fae5" />
-      </linearGradient>
-      <linearGradient id="grad-pocket" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stop-color="#eff6ff" />
-        <stop offset="100%" stop-color="#dbeafe" />
-      </linearGradient>
-      <linearGradient id="grad-expense" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stop-color="#fff1f2" />
-        <stop offset="100%" stop-color="#ffe4e6" />
-      </linearGradient>
+      <marker id="socket-arrow-purple" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#c084fc" />
+      </marker>
     `;
     svg.appendChild(defs);
 
@@ -89,16 +91,16 @@ export class FlowCanvas {
     const pockets = store.state.pockets;
     const expenses = store.state.expenseCategories;
 
-    const col1X = Math.max(20, width * 0.05);
-    const col2X = width * 0.42;
-    const col3X = Math.min(width - 230, width * 0.76);
+    const nodeWidth = Math.min(240, Math.max(190, width * 0.28));
+    const nodeHeight = 112;
 
-    const nodeWidth = Math.min(210, width * 0.28);
-    const nodeHeight = 65;
+    const col1X = Math.max(20, width * 0.04);
+    const col2X = width * 0.40;
+    const col3X = Math.min(width - nodeWidth - 20, width * 0.74);
 
     // Calculate node Y positions
     const calcY = (items, totalHeight) => {
-      const spacing = 18;
+      const spacing = 22;
       const count = items.length;
       const totalBlock = count * nodeHeight + (count - 1) * spacing;
       const startY = Math.max(30, (totalHeight - totalBlock) / 2);
@@ -109,272 +111,429 @@ export class FlowCanvas {
     const pktY = calcY(pockets, height);
     const expY = calcY(expenses, height);
 
-    const nodePositions = {};
+    const nodeSockets = {};
 
-    // 1. Render Incomes
+    // 1. Render Incomes (Only Output Socket)
     incomes.forEach((inc, i) => {
       const x = col1X;
       const y = incY[i];
-      nodePositions[inc.id] = { x, y, width: nodeWidth, height: nodeHeight, type: 'income', outX: x + nodeWidth, outY: y + nodeHeight / 2 };
-      this.createNodeElement(nodesGroup, {
+      const outputSocketY = y + 84;
+      nodeSockets[inc.id] = {
+        outX: x + nodeWidth,
+        outY: outputSocketY
+      };
+
+      this.createBlenderNode(nodesGroup, {
         id: inc.id,
         x, y, width: nodeWidth, height: nodeHeight,
-        label: inc.label,
-        sublabel: i18n.formatCurrency(inc.total),
-        badge: 'INCOME',
+        title: inc.label,
         theme: 'income',
+        headerColor: '#065f46',
+        badge: 'INCOME NODE',
+        currentValue: i18n.formatCurrency(inc.total),
+        valueLabel: 'Total Dana Masuk',
+        inputs: [],
+        outputs: [
+          { label: 'Outflow (Alirkan)', yOffset: 84, color: '#10b981' }
+        ],
         selected: this.selectedNodeId === inc.id
       });
     });
 
-    // 2. Render Pockets
+    // 2. Render Pockets (Input Sockets on Left + Output Sockets on Right)
     pockets.forEach((pkt, i) => {
       const x = col2X;
       const y = pktY[i];
-      nodePositions[pkt.id] = {
-        x, y, width: nodeWidth, height: nodeHeight, type: 'account',
-        inX: x, inY: y + nodeHeight / 2,
-        outX: x + nodeWidth, outY: y + nodeHeight / 2
+      const inputSocketY = y + 84;
+      const outputSocketY = y + 84;
+
+      nodeSockets[pkt.id] = {
+        inX: x,
+        inY: inputSocketY,
+        outX: x + nodeWidth,
+        outY: outputSocketY
       };
-      this.createNodeElement(nodesGroup, {
+
+      this.createBlenderNode(nodesGroup, {
         id: pkt.id,
         x, y, width: nodeWidth, height: nodeHeight,
-        label: pkt.label,
-        sublabel: i18n.formatCurrency(pkt.balance),
-        badge: pkt.category.toUpperCase(),
+        title: pkt.label,
         theme: 'pocket',
+        headerColor: '#1e40af',
+        badge: pkt.category.toUpperCase(),
+        currentValue: i18n.formatCurrency(pkt.balance),
+        valueLabel: 'Saldo Sekarang',
+        inputs: [
+          { label: 'Inflow (Masuk)', yOffset: 84, color: '#38bdf8' }
+        ],
+        outputs: [
+          { label: 'Outflow (Belanja)', yOffset: 84, color: '#f87171' }
+        ],
         selected: this.selectedNodeId === pkt.id
       });
     });
 
-    // 3. Render Expenses
+    // 3. Render Expenses (Input Sockets on Left)
     expenses.forEach((exp, i) => {
       const x = col3X;
       const y = expY[i];
-      nodePositions[exp.id] = { x, y, width: nodeWidth, height: nodeHeight, type: 'expense', inX: x, inY: y + nodeHeight / 2 };
-      this.createNodeElement(nodesGroup, {
+      const inputSocketY = y + 84;
+
+      nodeSockets[exp.id] = {
+        inX: x,
+        inY: inputSocketY
+      };
+
+      this.createBlenderNode(nodesGroup, {
         id: exp.id,
         x, y, width: nodeWidth, height: nodeHeight,
-        label: exp.label,
-        sublabel: i18n.formatCurrency(exp.total),
-        badge: 'EXPENSE',
+        title: exp.label,
         theme: 'expense',
+        headerColor: '#991b1b',
+        badge: 'EXPENSE NODE',
+        currentValue: i18n.formatCurrency(exp.total),
+        valueLabel: 'Total Terpakai',
+        inputs: [
+          { label: 'Dana Masuk (In)', yOffset: 84, color: '#f87171' }
+        ],
+        outputs: [],
         selected: this.selectedNodeId === exp.id
       });
     });
 
-    // Render connecting edges based on store.transactions
+    // 4. Draw Connecting Edges between Blender Sockets
     const edgeDrawn = new Set();
     store.state.transactions.forEach(tx => {
       const edgeKey = `${tx.fromId}->${tx.toId}`;
       if (edgeDrawn.has(edgeKey)) return;
       edgeDrawn.add(edgeKey);
 
-      const fromPos = nodePositions[tx.fromId];
-      const toPos = nodePositions[tx.toId];
+      const fromSocket = nodeSockets[tx.fromId];
+      const toSocket = nodeSockets[tx.toId];
 
-      if (fromPos && toPos) {
-        let startX = fromPos.outX;
-        let startY = fromPos.outY;
-        let endX = toPos.inX || toPos.x;
-        let endY = toPos.inY || (toPos.y + toPos.height / 2);
+      if (fromSocket && toSocket) {
+        const startX = fromSocket.outX;
+        const startY = fromSocket.outY;
+        const endX = toSocket.inX;
+        const endY = toSocket.inY;
 
         const isHighlighted = this.selectedNodeId === tx.fromId || this.selectedNodeId === tx.toId;
-        const color = tx.type === 'income' ? '#10b981' : (tx.type === 'expense' ? '#ef4444' : '#8b5cf6');
-        const marker = tx.type === 'income' ? 'url(#arrow-green)' : (tx.type === 'expense' ? 'url(#arrow-red)' : 'url(#arrow-purple)');
+        const color = tx.type === 'income' ? '#10b981' : (tx.type === 'expense' ? '#f87171' : '#c084fc');
+        const marker = tx.type === 'income' ? 'url(#socket-arrow-green)' : (tx.type === 'expense' ? 'url(#socket-arrow-red)' : 'url(#socket-arrow-purple)');
 
-        this.drawBezierEdge(edgesGroup, startX, startY, endX, endY, color, marker, isHighlighted);
+        this.drawBlenderBezierEdge(edgesGroup, startX, startY, endX, endY, color, marker, isHighlighted);
       }
     });
   }
 
   renderIRLMode(width, height, nodesGroup, edgesGroup) {
-    // IRL Mode lays out distinct accounts in a central cluster showing internal transfers,
-    // with incomes on the left and expenses on the right or surrounding
     const incomes = store.state.incomeSources;
     const pockets = store.state.pockets;
     const expenses = store.state.expenseCategories;
 
-    const nodeWidth = Math.min(200, width * 0.26);
-    const nodeHeight = 65;
-    const nodePositions = {};
+    const nodeWidth = Math.min(235, Math.max(185, width * 0.27));
+    const nodeHeight = 114;
 
-    // Left column: Incomes
-    const incSpacing = 20;
-    const incStartY = Math.max(40, (height - (incomes.length * (nodeHeight + incSpacing))) / 2);
+    const col1X = width * 0.04;
+    const col2X = width * 0.38;
+    const col3X = width * 0.72;
+
+    const calcY = (items, totalHeight, spacing = 24) => {
+      const count = items.length;
+      const totalBlock = count * nodeHeight + (count - 1) * spacing;
+      const startY = Math.max(30, (totalHeight - totalBlock) / 2);
+      return items.map((_, i) => startY + i * (nodeHeight + spacing));
+    };
+
+    const incY = calcY(incomes, height);
+    const pktY = calcY(pockets, height, 32);
+    const expY = calcY(expenses, height);
+
+    const nodeSockets = {};
+
+    // 1. Incomes
     incomes.forEach((inc, i) => {
-      const x = width * 0.05;
-      const y = incStartY + i * (nodeHeight + incSpacing);
-      nodePositions[inc.id] = { x, y, width: nodeWidth, height: nodeHeight, outX: x + nodeWidth, outY: y + nodeHeight / 2 };
-      this.createNodeElement(nodesGroup, {
+      const x = col1X;
+      const y = incY[i];
+      const outputSocketY = y + 84;
+      nodeSockets[inc.id] = { outX: x + nodeWidth, outY: outputSocketY };
+
+      this.createBlenderNode(nodesGroup, {
         id: inc.id,
         x, y, width: nodeWidth, height: nodeHeight,
-        label: inc.label,
-        sublabel: i18n.formatCurrency(inc.total),
-        badge: 'SOURCE',
+        title: inc.label,
         theme: 'income',
+        headerColor: '#065f46',
+        badge: 'SOURCE',
+        currentValue: i18n.formatCurrency(inc.total),
+        valueLabel: 'Total Dana Masuk',
+        inputs: [],
+        outputs: [
+          { label: 'Transfer Out ▶', yOffset: 84, color: '#10b981' }
+        ],
         selected: this.selectedNodeId === inc.id
       });
     });
 
-    // Center column: Pockets (stacked with slightly offset visual hierarchy)
-    const pktSpacing = 24;
-    const pktStartY = Math.max(40, (height - (pockets.length * (nodeHeight + pktSpacing))) / 2);
+    // 2. Pockets with Dual Output (Spending Out + Transfer Out)
     pockets.forEach((pkt, i) => {
-      const x = width * 0.40;
-      const y = pktStartY + i * (nodeHeight + pktSpacing);
-      nodePositions[pkt.id] = {
-        x, y, width: nodeWidth, height: nodeHeight,
-        inX: x, inY: y + nodeHeight / 2,
-        outX: x + nodeWidth, outY: y + nodeHeight / 2,
-        topX: x + nodeWidth / 2, topY: y,
-        botX: x + nodeWidth / 2, botY: y + nodeHeight
+      const x = col2X;
+      const y = pktY[i];
+      const inSocketY = y + 74;
+      const outSpendSocketY = y + 74;
+      const outTransferSocketY = y + 96;
+
+      nodeSockets[pkt.id] = {
+        inX: x,
+        inY: inSocketY,
+        outX: x + nodeWidth,
+        outY: outSpendSocketY,
+        transferOutX: x + nodeWidth,
+        transferOutY: outTransferSocketY
       };
-      this.createNodeElement(nodesGroup, {
+
+      this.createBlenderNode(nodesGroup, {
         id: pkt.id,
         x, y, width: nodeWidth, height: nodeHeight,
-        label: pkt.label,
-        sublabel: i18n.formatCurrency(pkt.balance),
-        badge: pkt.category.toUpperCase(),
+        title: pkt.label,
         theme: 'pocket',
+        headerColor: '#1e40af',
+        badge: pkt.category.toUpperCase(),
+        currentValue: i18n.formatCurrency(pkt.balance),
+        valueLabel: 'Saldo Sekarang',
+        inputs: [
+          { label: 'Inflow (Masuk)', yOffset: 74, color: '#38bdf8' }
+        ],
+        outputs: [
+          { label: 'Belanja Out ▶', yOffset: 74, color: '#f87171' },
+          { label: 'Transfer ⇄', yOffset: 96, color: '#c084fc' }
+        ],
         selected: this.selectedNodeId === pkt.id
       });
     });
 
-    // Right column: Expenses
-    const expSpacing = 16;
-    const expStartY = Math.max(30, (height - (expenses.length * (nodeHeight + expSpacing))) / 2);
+    // 3. Expenses
     expenses.forEach((exp, i) => {
-      const x = width * 0.74;
-      const y = expStartY + i * (nodeHeight + expSpacing);
-      nodePositions[exp.id] = { x, y, width: nodeWidth, height: nodeHeight, inX: x, inY: y + nodeHeight / 2 };
-      this.createNodeElement(nodesGroup, {
+      const x = col3X;
+      const y = expY[i];
+      const inSocketY = y + 84;
+      nodeSockets[exp.id] = { inX: x, inY: inSocketY };
+
+      this.createBlenderNode(nodesGroup, {
         id: exp.id,
         x, y, width: nodeWidth, height: nodeHeight,
-        label: exp.label,
-        sublabel: i18n.formatCurrency(exp.total),
-        badge: 'EXPENSE',
+        title: exp.label,
         theme: 'expense',
+        headerColor: '#991b1b',
+        badge: 'EXPENSE',
+        currentValue: i18n.formatCurrency(exp.total),
+        valueLabel: 'Total Pengeluaran',
+        inputs: [
+          { label: 'Bayar In', yOffset: 84, color: '#f87171' }
+        ],
+        outputs: [],
         selected: this.selectedNodeId === exp.id
       });
     });
 
-    // Draw all transaction edges (including lateral pocket-to-pocket transfers)
+    // 4. Edges (Handling normal flow + inter-pocket transfers)
     const edgeDrawn = new Set();
     store.state.transactions.forEach(tx => {
       const edgeKey = `${tx.fromId}->${tx.toId}`;
       if (edgeDrawn.has(edgeKey)) return;
       edgeDrawn.add(edgeKey);
 
-      const fromPos = nodePositions[tx.fromId];
-      const toPos = nodePositions[tx.toId];
+      const fromSocket = nodeSockets[tx.fromId];
+      const toSocket = nodeSockets[tx.toId];
 
-      if (fromPos && toPos) {
+      if (fromSocket && toSocket) {
         let startX, startY, endX, endY;
+        const isHighlighted = this.selectedNodeId === tx.fromId || this.selectedNodeId === tx.toId;
 
         if (tx.type === 'transfer') {
-          // Curved loop or lateral edge between wallets
-          startX = fromPos.x + fromPos.width;
-          startY = fromPos.outY;
-          endX = toPos.x + toPos.width;
-          endY = toPos.outY;
-          // Loop out slightly
-          const isHighlighted = this.selectedNodeId === tx.fromId || this.selectedNodeId === tx.toId;
-          this.drawArcEdge(edgesGroup, startX, startY, endX, endY, '#8b5cf6', 'url(#arrow-purple)', isHighlighted);
+          startX = fromSocket.transferOutX || fromSocket.outX;
+          startY = fromSocket.transferOutY || fromSocket.outY;
+          endX = toSocket.inX;
+          endY = toSocket.inY;
+          this.drawBlenderArcEdge(edgesGroup, startX, startY, endX, endY, '#c084fc', 'url(#socket-arrow-purple)', isHighlighted);
         } else {
-          startX = fromPos.outX;
-          startY = fromPos.outY;
-          endX = toPos.inX;
-          endY = toPos.inY;
-          const isHighlighted = this.selectedNodeId === tx.fromId || this.selectedNodeId === tx.toId;
-          const color = tx.type === 'income' ? '#10b981' : '#ef4444';
-          const marker = tx.type === 'income' ? 'url(#arrow-green)' : 'url(#arrow-red)';
-          this.drawBezierEdge(edgesGroup, startX, startY, endX, endY, color, marker, isHighlighted);
+          startX = fromSocket.outX;
+          startY = fromSocket.outY;
+          endX = toSocket.inX;
+          endY = toSocket.inY;
+          const color = tx.type === 'income' ? '#10b981' : '#f87171';
+          const marker = tx.type === 'income' ? 'url(#socket-arrow-green)' : 'url(#socket-arrow-red)';
+          this.drawBlenderBezierEdge(edgesGroup, startX, startY, endX, endY, color, marker, isHighlighted);
         }
       }
     });
   }
 
-  createNodeElement(parent, { id, x, y, width, height, label, sublabel, badge, theme, selected }) {
+  createBlenderNode(parent, { id, x, y, width, height, title, theme, headerColor, badge, currentValue, valueLabel, inputs, outputs, selected }) {
     const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-    group.setAttribute('class', `node-card node-${theme} ${selected ? 'node-selected' : ''}`);
+    group.setAttribute('class', `node-blender node-${theme} ${selected ? 'node-selected' : ''}`);
     group.setAttribute('cursor', 'pointer');
-    group.style.transition = 'transform 0.2s, filter 0.2s';
+    if (selected) {
+      group.setAttribute('filter', 'url(#blender-glow)');
+    } else {
+      group.setAttribute('filter', 'url(#blender-shadow)');
+    }
 
-    // Click handler
+    // Click handler for Node Inspector
     group.addEventListener('click', (e) => {
       e.stopPropagation();
       this.selectNode(id);
     });
 
-    // Shadow & Background Rect
-    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    rect.setAttribute('x', x.toString());
-    rect.setAttribute('y', y.toString());
-    rect.setAttribute('width', width.toString());
-    rect.setAttribute('height', height.toString());
-    rect.setAttribute('rx', '10');
-    rect.setAttribute('ry', '10');
+    // 1. Outer Node Body Container (Blender Dark Slate)
+    const bodyRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bodyRect.setAttribute('x', x.toString());
+    bodyRect.setAttribute('y', y.toString());
+    bodyRect.setAttribute('width', width.toString());
+    bodyRect.setAttribute('height', height.toString());
+    bodyRect.setAttribute('rx', '8');
+    bodyRect.setAttribute('ry', '8');
+    bodyRect.setAttribute('fill', '#20242d'); // Blender node dark charcoal background
+    bodyRect.setAttribute('stroke', selected ? '#f97316' : '#374151'); // Orange active border like Blender
+    bodyRect.setAttribute('stroke-width', selected ? '2.5' : '1.2');
+    group.appendChild(bodyRect);
 
-    let strokeColor = '#cbd5e1';
-    let fillColor = '#ffffff';
+    // 2. Node Header (Distinct Colored Title Bar)
+    const headerHeight = 28;
+    const headerRect = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    // Rounded top corners (radius 8), flat bottom
+    const r = 8;
+    const pathD = `
+      M ${x + r} ${y}
+      H ${x + width - r}
+      Q ${x + width} ${y} ${x + width} ${y + r}
+      V ${y + headerHeight}
+      H ${x}
+      V ${y + r}
+      Q ${x} ${y} ${x + r} ${y}
+      Z
+    `;
+    headerRect.setAttribute('d', pathD);
+    headerRect.setAttribute('fill', headerColor);
+    group.appendChild(headerRect);
 
-    if (theme === 'income') {
-      strokeColor = selected ? '#059669' : '#10b981';
-      fillColor = selected ? '#d1fae5' : '#f0fdf4';
-    } else if (theme === 'pocket') {
-      strokeColor = selected ? '#2563eb' : '#3b82f6';
-      fillColor = selected ? '#dbeafe' : '#eff6ff';
-    } else if (theme === 'expense') {
-      strokeColor = selected ? '#dc2626' : '#ef4444';
-      fillColor = selected ? '#ffe4e6' : '#fff1f2';
-    }
+    // Header Title (Node Name)
+    const headerTitle = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    headerTitle.setAttribute('x', (x + 10).toString());
+    headerTitle.setAttribute('y', (y + 18).toString());
+    headerTitle.setAttribute('font-size', '12');
+    headerTitle.setAttribute('font-weight', '700');
+    headerTitle.setAttribute('fill', '#ffffff');
+    headerTitle.setAttribute('letter-spacing', '0.2');
+    const maxChars = Math.floor(width / 13);
+    headerTitle.textContent = title.length > maxChars ? title.slice(0, maxChars) + '...' : title;
+    group.appendChild(headerTitle);
 
-    rect.setAttribute('fill', fillColor);
-    rect.setAttribute('stroke', strokeColor);
-    rect.setAttribute('stroke-width', selected ? '2.5' : '1.5');
-    rect.classList.add('node-rect');
-    group.appendChild(rect);
-
-    // Badge Pill
+    // Header Badge Pill
     const badgeText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     badgeText.setAttribute('x', (x + width - 10).toString());
-    badgeText.setAttribute('y', (y + 16).toString());
+    badgeText.setAttribute('y', (y + 18).toString());
     badgeText.setAttribute('text-anchor', 'end');
     badgeText.setAttribute('font-size', '9');
-    badgeText.setAttribute('font-weight', '700');
-    badgeText.setAttribute('letter-spacing', '0.5');
-    badgeText.setAttribute('fill', strokeColor);
+    badgeText.setAttribute('font-weight', '800');
+    badgeText.setAttribute('fill', 'rgba(255, 255, 255, 0.75)');
     badgeText.textContent = badge;
     group.appendChild(badgeText);
 
-    // Label Text (Title)
-    const title = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    title.setAttribute('x', (x + 12).toString());
-    title.setAttribute('y', (y + 26).toString());
-    title.setAttribute('font-size', '12');
-    title.setAttribute('font-weight', '600');
-    title.setAttribute('fill', '#1e293b');
-    // Truncate long title
-    const maxChars = Math.floor(width / 11);
-    title.textContent = label.length > maxChars ? label.slice(0, maxChars) + '...' : label;
-    group.appendChild(title);
+    // 3. Content Body - Line Awal: Current Value (Value Sekarang)
+    // Label
+    const valLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    valLabel.setAttribute('x', (x + 12).toString());
+    valLabel.setAttribute('y', (y + 44).toString());
+    valLabel.setAttribute('font-size', '10');
+    valLabel.setAttribute('font-weight', '600');
+    valLabel.setAttribute('fill', '#94a3b8');
+    valLabel.textContent = `${valueLabel}:`;
+    group.appendChild(valLabel);
 
-    // Sublabel (Balance or Inflow/Outflow)
-    const sub = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    sub.setAttribute('x', (x + 12).toString());
-    sub.setAttribute('y', (y + 48).toString());
-    sub.setAttribute('font-size', '13');
-    sub.setAttribute('font-weight', '700');
-    sub.setAttribute('fill', strokeColor);
-    sub.textContent = sublabel;
-    group.appendChild(sub);
+    // Large Glowing Value Text
+    const valText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    valText.setAttribute('x', (x + 12).toString());
+    valText.setAttribute('y', (y + 62).toString());
+    valText.setAttribute('font-size', '14');
+    valText.setAttribute('font-weight', '800');
+    valText.setAttribute('font-family', "'JetBrains Mono', monospace");
+    let valColor = '#38bdf8';
+    if (theme === 'income') valColor = '#34d399';
+    if (theme === 'expense') valColor = '#f87171';
+    valText.setAttribute('fill', valColor);
+    valText.textContent = currentValue;
+    group.appendChild(valText);
+
+    // Divider Line between Value and Sockets
+    const divLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    divLine.setAttribute('x1', (x + 8).toString());
+    divLine.setAttribute('y1', (y + 68).toString());
+    divLine.setAttribute('x2', (x + width - 8).toString());
+    divLine.setAttribute('y2', (y + 68).toString());
+    divLine.setAttribute('stroke', '#2d3340');
+    divLine.setAttribute('stroke-width', '1');
+    group.appendChild(divLine);
+
+    // 4. Render Input Sockets & Labels (Left side)
+    inputs.forEach(inp => {
+      const socketY = y + inp.yOffset;
+
+      // Socket Pin Circle (Blender style)
+      const socketPin = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      socketPin.setAttribute('cx', x.toString());
+      socketPin.setAttribute('cy', socketY.toString());
+      socketPin.setAttribute('r', '5');
+      socketPin.setAttribute('fill', inp.color || '#38bdf8');
+      socketPin.setAttribute('stroke', '#111827');
+      socketPin.setAttribute('stroke-width', '2');
+      socketPin.classList.add('blender-socket');
+      group.appendChild(socketPin);
+
+      // Input Socket Text Label
+      const socketLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      socketLabel.setAttribute('x', (x + 10).toString());
+      socketLabel.setAttribute('y', (socketY + 4).toString());
+      socketLabel.setAttribute('font-size', '10');
+      socketLabel.setAttribute('font-weight', '600');
+      socketLabel.setAttribute('fill', '#cbd5e1');
+      socketLabel.textContent = `● ${inp.label}`;
+      group.appendChild(socketLabel);
+    });
+
+    // 5. Render Output Sockets & Labels (Right side)
+    outputs.forEach(out => {
+      const socketY = y + out.yOffset;
+
+      // Socket Pin Circle (Blender style)
+      const socketPin = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      socketPin.setAttribute('cx', (x + width).toString());
+      socketPin.setAttribute('cy', socketY.toString());
+      socketPin.setAttribute('r', '5');
+      socketPin.setAttribute('fill', out.color || '#f87171');
+      socketPin.setAttribute('stroke', '#111827');
+      socketPin.setAttribute('stroke-width', '2');
+      socketPin.classList.add('blender-socket');
+      group.appendChild(socketPin);
+
+      // Output Socket Text Label
+      const socketLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      socketLabel.setAttribute('x', (x + width - 10).toString());
+      socketLabel.setAttribute('y', (socketY + 4).toString());
+      socketLabel.setAttribute('text-anchor', 'end');
+      socketLabel.setAttribute('font-size', '10');
+      socketLabel.setAttribute('font-weight', '600');
+      socketLabel.setAttribute('fill', '#cbd5e1');
+      socketLabel.textContent = `${out.label} ●`;
+      group.appendChild(socketLabel);
+    });
 
     parent.appendChild(group);
   }
 
-  drawBezierEdge(parent, x1, y1, x2, y2, color, marker, isHighlighted) {
-    const dx = Math.abs(x2 - x1) * 0.5;
+  drawBlenderBezierEdge(parent, x1, y1, x2, y2, color, marker, isHighlighted) {
+    // Blender-style horizontal S-curve bezier
+    const dx = Math.abs(x2 - x1) * 0.55;
     const cp1x = x1 + dx;
     const cp1y = y1;
     const cp2x = x2 - dx;
@@ -385,18 +544,18 @@ export class FlowCanvas {
     path.setAttribute('d', d);
     path.setAttribute('fill', 'none');
     path.setAttribute('stroke', color);
-    path.setAttribute('stroke-width', isHighlighted ? '3' : '1.8');
-    path.setAttribute('stroke-opacity', isHighlighted ? '1' : '0.45');
+    path.setAttribute('stroke-width', isHighlighted ? '3.5' : '2.2');
+    path.setAttribute('stroke-opacity', isHighlighted ? '1' : '0.65');
     if (isHighlighted) {
-      path.setAttribute('stroke-dasharray', '6,3');
+      path.setAttribute('stroke-dasharray', '8,4');
       path.classList.add('edge-animated');
     }
     path.setAttribute('marker-end', marker);
     parent.appendChild(path);
   }
 
-  drawArcEdge(parent, x1, y1, x2, y2, color, marker, isHighlighted) {
-    const offset = 45;
+  drawBlenderArcEdge(parent, x1, y1, x2, y2, color, marker, isHighlighted) {
+    const offset = 48;
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     const midX = Math.max(x1, x2) + offset;
     const midY = (y1 + y2) / 2;
@@ -404,9 +563,9 @@ export class FlowCanvas {
     path.setAttribute('d', d);
     path.setAttribute('fill', 'none');
     path.setAttribute('stroke', color);
-    path.setAttribute('stroke-width', isHighlighted ? '2.8' : '1.6');
-    path.setAttribute('stroke-opacity', isHighlighted ? '1' : '0.5');
-    path.setAttribute('stroke-dasharray', '4,3');
+    path.setAttribute('stroke-width', isHighlighted ? '3' : '2');
+    path.setAttribute('stroke-opacity', isHighlighted ? '1' : '0.7');
+    path.setAttribute('stroke-dasharray', '6,3');
     path.setAttribute('marker-end', marker);
     parent.appendChild(path);
   }
