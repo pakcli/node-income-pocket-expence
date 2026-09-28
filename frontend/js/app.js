@@ -282,9 +282,200 @@ function renderPanelCreateNodeForm() {
   });
 }
 
+function renderTxItemsHtml(txs) {
+  if (txs.length === 0) {
+    return `<p style="font-size: 12px; color: var(--text-muted);">${i18n.t('no_transactions')}</p>`;
+  }
+  return txs.map(t => `
+    <div style="background: rgba(15, 23, 42, 0.4); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; font-size: 12px;">
+      <div style="display: flex; justify-content: space-between; font-weight: 700;">
+        <span>${i18n.formatDate(t.date)}</span>
+        <span class="${t.type === 'income' ? 'delta-income' : (t.type === 'expense' ? 'delta-expense' : 'delta-transfer')}">
+          ${t.type === 'income' ? '+' : '-'}${i18n.formatCurrency(t.amount)}
+        </span>
+      </div>
+      <div style="color: var(--text-muted); margin-top: 4px; font-size: 11px;">
+        ${t.fromLabel} &rarr; ${t.toLabel}
+      </div>
+
+      <!-- Note View & Inline Editor -->
+      <div id="tx-note-wrapper-${t.id}" style="margin-top: 6px; padding-top: 4px; border-top: 1px dashed rgba(255,255,255,0.06); display: flex; justify-content: space-between; align-items: center;">
+        <span id="tx-note-text-${t.id}" style="color: var(--text-secondary); font-style: italic;">
+          "${t.note || 'Tidak ada catatan'}"
+        </span>
+        <button class="btn-inline-edit-note" data-txid="${t.id}" style="background: transparent; border: none; color: #38bdf8; font-size: 11px; cursor: pointer; padding: 2px 6px;">
+          ✏️ Edit
+        </button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function attachInlineNoteEditors(container, refreshNodeId) {
+  container.querySelectorAll('.btn-inline-edit-note').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const txId = btn.getAttribute('data-txid');
+      const wrapper = document.getElementById(`tx-note-wrapper-${txId}`);
+      const tx = store.state.transactions.find(t => t.id === txId);
+      if (!wrapper || !tx) return;
+
+      wrapper.innerHTML = `
+        <div style="display: flex; gap: 4px; width: 100%; margin-top: 4px;">
+          <input type="text" id="inline-note-input-${txId}" class="form-input" value="${tx.note || ''}" style="padding: 4px 8px; font-size: 11px; flex: 1;">
+          <button id="btn-save-note-${txId}" class="btn-action btn-income" style="padding: 4px 8px; font-size: 11px;">OK</button>
+          <button id="btn-cancel-note-${txId}" class="btn-action" style="padding: 4px 6px; font-size: 11px; background: #334155; color: white;">✕</button>
+        </div>
+      `;
+
+      document.getElementById(`btn-cancel-note-${txId}`)?.addEventListener('click', () => {
+        inspectNode(refreshNodeId);
+      });
+
+      document.getElementById(`btn-save-note-${txId}`)?.addEventListener('click', async () => {
+        const val = document.getElementById(`inline-note-input-${txId}`).value.trim();
+        await store.updateTransactionNote(txId, val);
+        showToast('Catatan transaksi berhasil diperbarui!');
+        inspectNode(refreshNodeId);
+        renderTableLedger();
+      });
+    });
+  });
+}
+
+function inspectTotalColumn(colType) {
+  const body = document.getElementById('inspectorBody');
+  if (!body) return;
+
+  if (colType === 'income') {
+    const total = store.getTotalIncome();
+    const incomes = store.state.incomeSources;
+    const txs = store.state.transactions.filter(t => t.type === 'income');
+    body.innerHTML = `
+      <div class="inspector-node-card" style="border-left: 3px solid #10b981;">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <span class="badge-tag tag-income">TOTAL INFLOW</span>
+          <span style="font-size: 11px; color: var(--text-muted); font-weight: 600;">${incomes.length} SUMBER</span>
+        </div>
+        <h3 style="margin-top: 8px; font-size: 17px; font-weight: 800; color: #f8fafc;">Total Dana Masuk</h3>
+        <div class="inspector-stat-grid">
+          <div class="inspector-stat-box" style="grid-column: span 2;">
+            <div class="inspector-stat-lbl">Akumulasi Dana Masuk</div>
+            <div class="inspector-stat-val" style="color: var(--accent-income); font-size: 18px;">+${i18n.formatCurrency(total)}</div>
+          </div>
+        </div>
+        <div style="margin-top: 14px;">
+          <h4 style="font-size: 12px; font-weight: 700; color: #cbd5e1; margin-bottom: 8px;">Rincian Sumber Pemasukan:</h4>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            ${incomes.map(inc => `
+              <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(15, 23, 42, 0.4); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border-color); font-size: 12px;">
+                <span style="font-weight: 600; color: #e2e8f0;">${inc.label}</span>
+                <span style="font-weight: 700; color: #34d399; font-family: monospace;">+${i18n.formatCurrency(inc.total)}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+      <div>
+        <h4 style="font-size: 13px; font-weight: 700; margin-bottom: 10px; color: #cbd5e1;">Riwayat Mutasi Masuk (${txs.length})</h4>
+        <div style="display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto;">
+          ${renderTxItemsHtml(txs)}
+        </div>
+      </div>
+    `;
+  } else if (colType === 'pocket') {
+    const total = store.getTotalBalance();
+    const pockets = store.state.pockets;
+    const txs = store.state.transactions;
+    body.innerHTML = `
+      <div class="inspector-node-card" style="border-left: 3px solid #3b82f6;">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <span class="badge-tag tag-pocket">TOTAL WALLETS</span>
+          <span style="font-size: 11px; color: var(--text-muted); font-weight: 600;">${pockets.length} KANTONG</span>
+        </div>
+        <h3 style="margin-top: 8px; font-size: 17px; font-weight: 800; color: #f8fafc;">Total Saldo Semua Kantong</h3>
+        <div class="inspector-stat-grid">
+          <div class="inspector-stat-box" style="grid-column: span 2;">
+            <div class="inspector-stat-lbl">Total Likuiditas Kas</div>
+            <div class="inspector-stat-val" style="color: #60a5fa; font-size: 18px;">${i18n.formatCurrency(total)}</div>
+          </div>
+        </div>
+        <div style="margin-top: 14px;">
+          <h4 style="font-size: 12px; font-weight: 700; color: #cbd5e1; margin-bottom: 8px;">Rincian Saldo Tiap Kantong:</h4>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            ${pockets.map(pkt => `
+              <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(15, 23, 42, 0.4); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border-color); font-size: 12px;">
+                <span style="font-weight: 600; color: #e2e8f0;">${pkt.label}</span>
+                <span style="font-weight: 700; color: #60a5fa; font-family: monospace;">${i18n.formatCurrency(pkt.balance)}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+      <div>
+        <h4 style="font-size: 13px; font-weight: 700; margin-bottom: 10px; color: #cbd5e1;">Riwayat Semua Transaksi (${txs.length})</h4>
+        <div style="display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto;">
+          ${renderTxItemsHtml(txs)}
+        </div>
+      </div>
+    `;
+  } else if (colType === 'expense') {
+    const total = store.getTotalExpense();
+    const expenses = store.state.expenseCategories;
+    const txs = store.state.transactions.filter(t => t.type === 'expense');
+    body.innerHTML = `
+      <div class="inspector-node-card" style="border-left: 3px solid #ef4444;">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <span class="badge-tag tag-expense">TOTAL EXPENSES</span>
+          <span style="font-size: 11px; color: var(--text-muted); font-weight: 600;">${expenses.length} POS</span>
+        </div>
+        <h3 style="margin-top: 8px; font-size: 17px; font-weight: 800; color: #f8fafc;">Total Pengeluaran</h3>
+        <div class="inspector-stat-grid">
+          <div class="inspector-stat-box" style="grid-column: span 2;">
+            <div class="inspector-stat-lbl">Akumulasi Belanja</div>
+            <div class="inspector-stat-val" style="color: var(--accent-expense); font-size: 18px;">-${i18n.formatCurrency(total)}</div>
+          </div>
+        </div>
+        <div style="margin-top: 14px;">
+          <h4 style="font-size: 12px; font-weight: 700; color: #cbd5e1; margin-bottom: 8px;">Rincian Pos Pengeluaran:</h4>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            ${expenses.map(exp => `
+              <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(15, 23, 42, 0.4); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border-color); font-size: 12px;">
+                <span style="font-weight: 600; color: #e2e8f0;">${exp.label}</span>
+                <span style="font-weight: 700; color: #f87171; font-family: monospace;">-${i18n.formatCurrency(exp.total)}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+      <div>
+        <h4 style="font-size: 13px; font-weight: 700; margin-bottom: 10px; color: #cbd5e1;">Riwayat Mutasi Keluar (${txs.length})</h4>
+        <div style="display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto;">
+          ${renderTxItemsHtml(txs)}
+        </div>
+      </div>
+    `;
+  }
+
+  attachInlineNoteEditors(body, `total-${colType}`);
+}
+
 function inspectNode(nodeId) {
   const body = document.getElementById('inspectorBody');
   if (!body) return;
+
+  // Handle click on column total nodes
+  if (nodeId === 'total-income') {
+    inspectTotalColumn('income');
+    return;
+  }
+  if (nodeId === 'total-pocket') {
+    inspectTotalColumn('pocket');
+    return;
+  }
+  if (nodeId === 'total-expense') {
+    inspectTotalColumn('expense');
+    return;
+  }
 
   // Search node among pockets, incomes, expenses
   let node = store.state.pockets.find(p => p.id === nodeId);
@@ -383,30 +574,7 @@ function inspectNode(nodeId) {
         <span style="font-size: 11px; color: var(--text-muted); font-weight: 500;">Klik ✏️ untuk edit catatan</span>
       </h4>
       <div style="display: flex; flex-direction: column; gap: 8px; max-height: 280px; overflow-y: auto;">
-        ${txs.length === 0 ? `<p style="font-size: 12px; color: var(--text-muted);">${i18n.t('no_transactions')}</p>` : ''}
-        ${txs.map(t => `
-          <div style="background: rgba(15, 23, 42, 0.4); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; font-size: 12px;">
-            <div style="display: flex; justify-content: space-between; font-weight: 700;">
-              <span>${i18n.formatDate(t.date)}</span>
-              <span class="${t.type === 'income' ? 'delta-income' : (t.type === 'expense' ? 'delta-expense' : 'delta-transfer')}">
-                ${t.type === 'income' ? '+' : '-'}${i18n.formatCurrency(t.amount)}
-              </span>
-            </div>
-            <div style="color: var(--text-muted); margin-top: 4px; font-size: 11px;">
-              ${t.fromLabel} &rarr; ${t.toLabel}
-            </div>
-
-            <!-- Note View & Inline Editor -->
-            <div id="tx-note-wrapper-${t.id}" style="margin-top: 6px; padding-top: 4px; border-top: 1px dashed rgba(255,255,255,0.06); display: flex; justify-content: space-between; align-items: center;">
-              <span id="tx-note-text-${t.id}" style="color: var(--text-secondary); font-style: italic;">
-                "${t.note || 'Tidak ada catatan'}"
-              </span>
-              <button class="btn-inline-edit-note" data-txid="${t.id}" style="background: transparent; border: none; color: #38bdf8; font-size: 11px; cursor: pointer; padding: 2px 6px;">
-                ✏️ Edit
-              </button>
-            </div>
-          </div>
-        `).join('')}
+        ${renderTxItemsHtml(txs)}
       </div>
     </div>
   `;
@@ -443,34 +611,7 @@ function inspectNode(nodeId) {
   });
 
   // Hook Inline Note Editors
-  document.querySelectorAll('.btn-inline-edit-note').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const txId = btn.getAttribute('data-txid');
-      const wrapper = document.getElementById(`tx-note-wrapper-${txId}`);
-      const tx = store.state.transactions.find(t => t.id === txId);
-      if (!wrapper || !tx) return;
-
-      wrapper.innerHTML = `
-        <div style="display: flex; gap: 4px; width: 100%; margin-top: 4px;">
-          <input type="text" id="inline-note-input-${txId}" class="form-input" value="${tx.note || ''}" style="padding: 4px 8px; font-size: 11px; flex: 1;">
-          <button id="btn-save-note-${txId}" class="btn-action btn-income" style="padding: 4px 8px; font-size: 11px;">OK</button>
-          <button id="btn-cancel-note-${txId}" class="btn-action" style="padding: 4px 6px; font-size: 11px; background: #334155; color: white;">✕</button>
-        </div>
-      `;
-
-      document.getElementById(`btn-cancel-note-${txId}`)?.addEventListener('click', () => {
-        inspectNode(nodeId);
-      });
-
-      document.getElementById(`btn-save-note-${txId}`)?.addEventListener('click', async () => {
-        const val = document.getElementById(`inline-note-input-${txId}`).value.trim();
-        await store.updateTransactionNote(txId, val);
-        showToast('Catatan transaksi berhasil diperbarui!');
-        inspectNode(nodeId);
-        renderTableLedger();
-      });
-    });
-  });
+  attachInlineNoteEditors(body, nodeId);
 }
 
 // 6. Precision Table Ledger (Brief v04 Sec 4.2)
@@ -614,20 +755,23 @@ function initViewTabs() {
 function initModeToggle() {
   const btnSimple = document.getElementById('btnModeSimple');
   const btnIRL = document.getElementById('btnModeIRL');
+  const btnBoth = document.getElementById('btnModeBoth');
 
-  if (btnSimple && btnIRL) {
-    btnSimple.addEventListener('click', () => {
-      btnSimple.classList.add('active');
-      btnIRL.classList.remove('active');
-      if (flowCanvas) flowCanvas.setMode('simple');
+  const setModeActive = (mode) => {
+    [btnSimple, btnIRL, btnBoth].forEach(btn => {
+      if (btn) btn.classList.remove('active');
     });
 
-    btnIRL.addEventListener('click', () => {
-      btnIRL.classList.add('active');
-      btnSimple.classList.remove('active');
-      if (flowCanvas) flowCanvas.setMode('irl');
-    });
-  }
+    if (mode === 'simple' && btnSimple) btnSimple.classList.add('active');
+    if (mode === 'irl' && btnIRL) btnIRL.classList.add('active');
+    if (mode === 'both' && btnBoth) btnBoth.classList.add('active');
+
+    if (flowCanvas) flowCanvas.setMode(mode);
+  };
+
+  btnSimple?.addEventListener('click', () => setModeActive('simple'));
+  btnIRL?.addEventListener('click', () => setModeActive('irl'));
+  btnBoth?.addEventListener('click', () => setModeActive('both'));
 }
 
 // 8. Modals Handling

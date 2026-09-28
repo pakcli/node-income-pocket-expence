@@ -939,6 +939,26 @@ body {
   stroke: rgba(255, 255, 255, 0.35);
 }
 
+/* Blender Total Summary Node */
+.node-blender-total {
+  cursor: pointer !important;
+}
+
+.node-blender-total rect:first-of-type {
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.5));
+  transition: stroke 0.15s ease, stroke-width 0.15s ease;
+}
+
+.node-blender-total:hover rect:first-of-type {
+  stroke: #ffffff !important;
+  stroke-width: 2px !important;
+  stroke-opacity: 0.9 !important;
+}
+
+.node-blender-total:hover .blender-socket {
+  filter: drop-shadow(0 0 6px #f97316);
+}
+
 .node-blender:hover .blender-socket {
   filter: drop-shadow(0 0 5px #38bdf8);
 }
