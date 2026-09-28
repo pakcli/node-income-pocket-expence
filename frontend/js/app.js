@@ -298,6 +298,14 @@ function initInspector() {
       updateViewLayout();
     });
   }
+
+  const btnToggleCanvas = document.getElementById('btnToggleInspectorFromCanvas');
+  if (btnToggleCanvas) {
+    btnToggleCanvas.addEventListener('click', () => {
+      isInspectorOpen = !isInspectorOpen;
+      updateViewLayout();
+    });
+  }
 }
 
 function renderPanelCreateNodeForm() {
@@ -1845,6 +1853,23 @@ function initScopeSelect() {
   }
 }
 
+function resetPanelSizes() {
+  const canvasWrapper = document.getElementById('canvasWrapper');
+  const inspectorSidebar = document.getElementById('inspectorSidebar');
+  const tableViewContainer = document.getElementById('tableViewContainer');
+
+  [canvasWrapper, inspectorSidebar, tableViewContainer].forEach(el => {
+    if (el) {
+      el.style.width = '';
+      el.style.flex = '';
+      el.style.maxWidth = '';
+      el.style.minWidth = '';
+    }
+  });
+
+  if (flowCanvas) flowCanvas.render();
+}
+
 function initPanelSplitters() {
   const container = document.getElementById('workspaceContainer');
   const splitterCanvas = document.getElementById('splitterCanvas');
@@ -1864,33 +1889,46 @@ function initPanelSplitters() {
       const rightEl = getRightEl();
       if (!leftEl || !rightEl) return;
 
+      container.classList.add('is-resizing');
       splitter.classList.add('dragging');
       document.body.style.cursor = 'col-resize';
       document.body.style.userSelect = 'none';
 
-      const containerWidth = container.getBoundingClientRect().width;
+      // Snapshot starting dimensions at mousedown to prevent feedback loops
+      const startX = e.clientX;
+      const startLeftWidth = leftEl.getBoundingClientRect().width;
+      const startRightWidth = rightEl.getBoundingClientRect().width;
+      const combinedWidth = startLeftWidth + startRightWidth;
+
+      const minLeftWidth = 240;
+      const minRightWidth = 200;
 
       const onMouseMove = (moveEvt) => {
-        const leftRect = leftEl.getBoundingClientRect();
-        const rightRect = rightEl.getBoundingClientRect();
-        const combinedWidth = leftRect.width + rightRect.width;
+        const deltaX = moveEvt.clientX - startX;
+        let newLeft = startLeftWidth + deltaX;
+        let newRight = startRightWidth - deltaX;
 
-        const newLeftWidth = moveEvt.clientX - leftRect.left;
-        const newRightWidth = combinedWidth - newLeftWidth;
-
-        // Min width 18% of container or 160px
-        const minWidth = Math.max(160, containerWidth * 0.18);
-
-        if (newLeftWidth >= minWidth && newRightWidth >= minWidth) {
-          leftEl.style.flex = 'none';
-          rightEl.style.flex = 'none';
-          leftEl.style.width = `${newLeftWidth}px`;
-          rightEl.style.width = `${newRightWidth}px`;
-          if (flowCanvas) flowCanvas.render();
+        // Clamp within allowed bounds
+        if (newLeft < minLeftWidth) {
+          newLeft = minLeftWidth;
+          newRight = combinedWidth - newLeft;
+        } else if (newRight < minRightWidth) {
+          newRight = minRightWidth;
+          newLeft = combinedWidth - newRight;
         }
+
+        leftEl.style.flex = 'none';
+        rightEl.style.flex = 'none';
+        leftEl.style.maxWidth = 'none';
+        rightEl.style.maxWidth = 'none';
+        leftEl.style.width = `${newLeft}px`;
+        rightEl.style.width = `${newRight}px`;
+
+        if (flowCanvas) flowCanvas.render();
       };
 
       const onMouseUp = () => {
+        container.classList.remove('is-resizing');
         splitter.classList.remove('dragging');
         document.body.style.cursor = '';
         document.body.style.userSelect = '';
@@ -1901,6 +1939,11 @@ function initPanelSplitters() {
 
       window.addEventListener('mousemove', onMouseMove);
       window.addEventListener('mouseup', onMouseUp);
+    });
+
+    // Double-click splitter to reset panel proportions
+    splitter.addEventListener('dblclick', () => {
+      resetPanelSizes();
     });
   };
 
@@ -2307,21 +2350,7 @@ function updateViewLayout() {
   if (!container) return;
 
   // Reset custom widths from splitter dragging when changing perspective tabs
-  if (canvasWrapper) {
-    canvasWrapper.style.display = '';
-    canvasWrapper.style.width = '';
-    canvasWrapper.style.flex = '';
-  }
-  if (inspectorSidebar) {
-    inspectorSidebar.style.display = '';
-    inspectorSidebar.style.width = '';
-    inspectorSidebar.style.flex = '';
-  }
-  if (tableViewContainer) {
-    tableViewContainer.style.display = '';
-    tableViewContainer.style.width = '';
-    tableViewContainer.style.flex = '';
-  }
+  resetPanelSizes();
 
   container.classList.remove('mode-flow', 'mode-table', 'mode-split', 'inspector-hidden');
 

@@ -495,22 +495,30 @@ body {
   display: flex;
   flex: 1;
   padding: 0 16px 8px 16px;
-  gap: 12px;
+  gap: 8px;
   min-height: 0;
   overflow: hidden;
-  transition: all 0.25s ease;
+  transition: all 0.2s ease;
+}
+
+.workspace-container.is-resizing {
+  transition: none !important;
+}
+
+.workspace-container.is-resizing * {
+  user-select: none !important;
 }
 
 /* View Modes Layout System (Brief v05) */
-/* 1. Flow Mode: 100% Canvas (or 80% Canvas + 20% Inspector when opened) */
+/* 1. Flow Mode: 80% Canvas + 20% Inspector when opened, or 100% when closed */
 .workspace-container.mode-flow .canvas-wrapper {
-  flex: 4;
+  flex: 1;
+  min-width: 320px;
   display: flex;
 }
 .workspace-container.mode-flow .inspector-sidebar {
-  flex: 1;
-  min-width: 280px;
-  max-width: 360px;
+  flex: 0 0 340px;
+  min-width: 240px;
   display: flex;
 }
 .workspace-container.mode-flow.inspector-hidden .canvas-wrapper {
@@ -538,28 +546,27 @@ body {
 /* 3. Split Mode: 50-50 when inspector closed, 40-20-40 when inspector opened */
 .workspace-container.mode-split .canvas-wrapper {
   display: flex;
-  flex: 2; /* 40% */
-  min-width: 0;
+  flex: 1;
+  min-width: 280px;
 }
 .workspace-container.mode-split .inspector-sidebar {
   display: flex;
-  flex: 1; /* 20% */
-  min-width: 250px;
-  max-width: 340px;
+  flex: 0 0 300px;
+  min-width: 220px;
 }
 .workspace-container.mode-split.inspector-hidden .canvas-wrapper {
-  flex: 1; /* 50% */
+  flex: 1;
 }
 .workspace-container.mode-split.inspector-hidden .inspector-sidebar {
   display: none !important;
 }
 .workspace-container.mode-split.inspector-hidden .table-view-container {
-  flex: 1; /* 50% */
+  flex: 1;
 }
 .workspace-container.mode-split .table-view-container {
   display: flex !important;
-  flex: 2; /* 40% */
-  min-width: 0;
+  flex: 1;
+  min-width: 320px;
 }
 
 .canvas-wrapper {
@@ -1964,20 +1971,42 @@ body {
 
 /* Row 3: Panel Resizable Splitters */
 .panel-splitter {
-  width: 6px;
-  min-width: 6px;
+  width: 8px;
+  min-width: 8px;
   background: rgba(255, 255, 255, 0.05);
+  border-left: 1px solid rgba(255, 255, 255, 0.07);
+  border-right: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 4px;
   cursor: col-resize;
-  transition: background 0.2s;
+  transition: background 0.15s, box-shadow 0.15s;
   user-select: none;
   position: relative;
-  z-index: 10;
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.panel-splitter::after {
+  content: '';
+  width: 2px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 2px;
+  pointer-events: none;
+  transition: background 0.15s;
 }
 
 .panel-splitter:hover,
 .panel-splitter.dragging {
   background: #38bdf8;
-  box-shadow: 0 0 10px #38bdf8;
+  border-color: #38bdf8;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.6);
+}
+
+.panel-splitter:hover::after,
+.panel-splitter.dragging::after {
+  background: #ffffff;
 }
 
 /* Splitter visibility based on active view mode */

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Student Pocket Manager (Brief v04)</title>
-  <link rel="stylesheet" href="css/styles.css?v=04.2">
+  <link rel="stylesheet" href="css/styles.css?v=05.1">
 </head>
 <body>
 
@@ -184,7 +184,7 @@
   </section>
 
   <!-- Row 3: Resizable Master Workspace Panels with Drag Splitters -->
-  <main id="workspaceContainer" class="workspace-container">
+  <main id="workspaceContainer" class="workspace-container mode-flow">
     <!-- Flow Canvas Section -->
     <section id="canvasWrapper" class="canvas-wrapper">
       <div class="canvas-header">
@@ -192,8 +192,11 @@
           <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #10b981;"></span>
           <span style="font-weight: 600;">Interaksi Alur: Klik Node untuk inspeksi riwayat & mutasi</span>
         </div>
-        <div style="font-size: 11px; color: var(--text-muted);">
-          [Pemasukan] ──> [Kantong & Rekening] ──> [Pos Pengeluaran]
+        <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 8px;">
+          <span>[Pemasukan] ──> [Kantong & Rekening] ──> [Pos Pengeluaran]</span>
+          <button type="button" id="btnToggleInspectorFromCanvas" class="mode-btn" style="padding: 2px 8px; font-size: 10px; background: rgba(59, 130, 246, 0.2); border: 1px solid rgba(59, 130, 246, 0.4); color: #93c5fd; border-radius: 4px; cursor: pointer;" title="Buka / Tutup Panel Detail">
+            🔍 Detail Panel
+          </button>
         </div>
       </div>
       <div id="flowViewport" class="flow-viewport"></div>
@@ -642,6 +645,6 @@
   <div id="toastContainer" class="toast-container"></div>
 
   <!-- Main ES Module Script -->
-  <script type="module" src="js/app.js?v=04.2"></script>
+  <script type="module" src="js/app.js?v=05.1"></script>
 </body>
 </html>
