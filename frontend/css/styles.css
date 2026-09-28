@@ -933,11 +933,10 @@ body {
 /* Blender Node Visual Theme */
 .node-blender {
   user-select: none;
-  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), filter 0.18s ease;
 }
 
-.node-blender:hover {
-  transform: translateY(-2px);
+.node-blender:hover rect:first-of-type {
+  stroke: rgba(255, 255, 255, 0.35);
 }
 
 .node-blender:hover .blender-socket {
@@ -967,26 +966,31 @@ body {
   }
 }
 
-/* Dragging and Drop Placeholder Preview */
+/* Zero-Jitter Dragging and Drop Ghost Line Preview */
 .node-blender.node-dragging {
-  opacity: 0.94;
-  filter: drop-shadow(0 16px 24px rgba(0, 0, 0, 0.9)) !important;
+  transition: none !important;
+  pointer-events: none !important;
+  opacity: 0.92;
+  filter: drop-shadow(0 14px 22px rgba(0, 0, 0, 0.92)) !important;
   cursor: grabbing !important;
+  will-change: transform;
 }
 
-.blender-drop-placeholder {
+.blender-ghost-line {
   pointer-events: none;
-  animation: dropPlaceholderPulse 1.4s ease-in-out infinite;
+  user-select: none;
 }
 
-@keyframes dropPlaceholderPulse {
+.blender-ghost-line .ghost-glow-line {
+  animation: ghostLinePulse 1.6s ease-in-out infinite;
+}
+
+@keyframes ghostLinePulse {
   0%, 100% {
-    stroke-opacity: 0.75;
-    fill-opacity: 0.10;
+    stroke-opacity: 0.35;
   }
   50% {
-    stroke-opacity: 1;
-    fill-opacity: 0.20;
+    stroke-opacity: 0.75;
   }
 }
 

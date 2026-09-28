@@ -133,23 +133,24 @@ export class FlowCanvas {
     svg.appendChild(framesGroup);
     this.framesGroup = framesGroup;
 
-    // Layer 2: Drop Target Ghost Preview Group
-    const previewGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-    previewGroup.classList.add('preview-group');
-    svg.appendChild(previewGroup);
-    this.previewGroup = previewGroup;
-
-    // Layer 3: Wire Edges Group
+    // Layer 2: Wire Edges Group
     const edgesGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     edgesGroup.classList.add('edges-group');
     svg.appendChild(edgesGroup);
     this.edgesGroup = edgesGroup;
 
-    // Layer 4: Nodes Group
+    // Layer 3: Nodes Group
     const nodesGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     nodesGroup.classList.add('nodes-group');
     svg.appendChild(nodesGroup);
     this.nodesGroup = nodesGroup;
+
+    // Layer 4: Drop Target Ghost Preview Group (topmost layer, pointer-events none)
+    const previewGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    previewGroup.classList.add('preview-group');
+    previewGroup.style.pointerEvents = 'none';
+    svg.appendChild(previewGroup);
+    this.previewGroup = previewGroup;
 
     if (this.mode === 'simple') {
       this.renderSimpleMode(width, height, nodeHeight, spacing);
@@ -745,8 +746,153 @@ export class FlowCanvas {
 
       const startY = downEvent.clientY;
       let isDragging = false;
-      let placeholderG = null;
+      let ghostLineG = null;
       let currentTargetIndex = initialSlotIndex;
+      let rafId = null;
+      let pendingDeltaY = null;
+
+      // Helper to compute target slot index
+      const computeTargetIndex = (visualY) => {
+        let bestIdx = initialSlotIndex;
+        let minDiff = Infinity;
+        slots.forEach((s, idx) => {
+          const diff = Math.abs(visualY - s.y);
+          if (diff < minDiff) {
+            minDiff = diff;
+            bestIdx = idx;
+          }
+        });
+        return bestIdx;
+      };
+
+      // Helper to compute insertion line Y coordinate
+      const computeLineY = (targetIdx, initialIdx, deltaY) => {
+        if (!slots.length) return initialY;
+        if (targetIdx === initialIdx) {
+          const s = slots[initialIdx];
+          return deltaY < 0 ? (s.y - 10) : (s.y + height + 10);
+        }
+        if (targetIdx < initialIdx) {
+          const s = slots[targetIdx];
+          if (targetIdx === 0) {
+            return s.y - 10;
+          }
+          const prev = slots[targetIdx - 1];
+          return (prev.y + height + s.y) / 2;
+        } else {
+          const s = slots[targetIdx];
+          if (targetIdx === slots.length - 1) {
+            return s.y + height + 10;
+          }
+          const next = slots[targetIdx + 1];
+          return (s.y + height + next.y) / 2;
+        }
+      };
+
+      // Create glowing ghost insertion line (●── DROP HERE ──●)
+      const createGhostLine = (lineY) => {
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.classList.add('blender-ghost-line');
+
+        const x1 = x - 6;
+        const x2 = x + width + 6;
+        const midX = x + width / 2;
+
+        // 1. Ambient Glow Line
+        const glowLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        glowLine.classList.add('ghost-glow-line');
+        glowLine.setAttribute('x1', x1.toString());
+        glowLine.setAttribute('y1', lineY.toString());
+        glowLine.setAttribute('x2', x2.toString());
+        glowLine.setAttribute('y2', lineY.toString());
+        glowLine.setAttribute('stroke', '#f97316');
+        glowLine.setAttribute('stroke-width', '5');
+        glowLine.setAttribute('stroke-linecap', 'round');
+        glowLine.setAttribute('filter', 'url(#blender-glow)');
+        g.appendChild(glowLine);
+
+        // 2. Crisp Core Line
+        const coreLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        coreLine.classList.add('ghost-core-line');
+        coreLine.setAttribute('x1', x1.toString());
+        coreLine.setAttribute('y1', lineY.toString());
+        coreLine.setAttribute('x2', x2.toString());
+        coreLine.setAttribute('y2', lineY.toString());
+        coreLine.setAttribute('stroke', '#f97316');
+        coreLine.setAttribute('stroke-width', '2.5');
+        coreLine.setAttribute('stroke-dasharray', '8 4');
+        coreLine.setAttribute('stroke-linecap', 'round');
+        g.appendChild(coreLine);
+
+        // 3. Left Endpoint Circle
+        const leftCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        leftCircle.classList.add('ghost-left-circle');
+        leftCircle.setAttribute('cx', x1.toString());
+        leftCircle.setAttribute('cy', lineY.toString());
+        leftCircle.setAttribute('r', '5');
+        leftCircle.setAttribute('fill', '#f97316');
+        leftCircle.setAttribute('stroke', '#0f172a');
+        leftCircle.setAttribute('stroke-width', '2');
+        g.appendChild(leftCircle);
+
+        // 4. Right Endpoint Circle
+        const rightCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        rightCircle.classList.add('ghost-right-circle');
+        rightCircle.setAttribute('cx', x2.toString());
+        rightCircle.setAttribute('cy', lineY.toString());
+        rightCircle.setAttribute('r', '5');
+        rightCircle.setAttribute('fill', '#f97316');
+        rightCircle.setAttribute('stroke', '#0f172a');
+        rightCircle.setAttribute('stroke-width', '2');
+        g.appendChild(rightCircle);
+
+        // 5. Center Subtle Pill Badge
+        const badgeW = 90;
+        const badgeH = 18;
+        const badgeRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        badgeRect.classList.add('ghost-badge-rect');
+        badgeRect.setAttribute('x', (midX - badgeW / 2).toString());
+        badgeRect.setAttribute('y', (lineY - badgeH / 2).toString());
+        badgeRect.setAttribute('width', badgeW.toString());
+        badgeRect.setAttribute('height', badgeH.toString());
+        badgeRect.setAttribute('rx', '9');
+        badgeRect.setAttribute('ry', '9');
+        badgeRect.setAttribute('fill', '#0f172a');
+        badgeRect.setAttribute('stroke', '#f97316');
+        badgeRect.setAttribute('stroke-width', '1.2');
+        g.appendChild(badgeRect);
+
+        const badgeText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        badgeText.classList.add('ghost-badge-text');
+        badgeText.setAttribute('x', midX.toString());
+        badgeText.setAttribute('y', (lineY + 3.5).toString());
+        badgeText.setAttribute('text-anchor', 'middle');
+        badgeText.setAttribute('font-size', '9');
+        badgeText.setAttribute('font-weight', '800');
+        badgeText.setAttribute('letter-spacing', '0.6');
+        badgeText.setAttribute('fill', '#f97316');
+        badgeText.textContent = 'DROP HERE';
+        g.appendChild(badgeText);
+
+        return g;
+      };
+
+      const updateGhostLine = (lineY) => {
+        if (!ghostLineG) return;
+        const lines = ghostLineG.querySelectorAll('line');
+        lines.forEach(l => {
+          l.setAttribute('y1', lineY.toString());
+          l.setAttribute('y2', lineY.toString());
+        });
+        const circles = ghostLineG.querySelectorAll('circle');
+        circles.forEach(c => {
+          c.setAttribute('cy', lineY.toString());
+        });
+        const rect = ghostLineG.querySelector('.ghost-badge-rect');
+        if (rect) rect.setAttribute('y', (lineY - 9).toString());
+        const text = ghostLineG.querySelector('.ghost-badge-text');
+        if (text) text.setAttribute('y', (lineY + 3.5).toString());
+      };
 
       const onWindowPointerMove = (moveEvent) => {
         const deltaY = moveEvent.clientY - startY;
@@ -754,80 +900,48 @@ export class FlowCanvas {
         // Threshold to initiate drag
         if (!isDragging && Math.abs(deltaY) > 5) {
           isDragging = true;
+          document.body.style.cursor = 'grabbing';
           nodeGroup.classList.add('node-dragging');
           nodeGroup.setAttribute('filter', 'url(#blender-drag-shadow)');
-          // Bring dragged node to the very top layer of the canvas
+          // Bring dragged node to the top layer of nodesGroup
           this.nodesGroup.appendChild(nodeGroup);
 
-          // Create the Drop Target Ghost Placeholder
-          placeholderG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-          placeholderG.classList.add('blender-drop-placeholder');
-
-          const ghostRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-          ghostRect.setAttribute('x', (x + 2).toString());
-          ghostRect.setAttribute('y', (initialY + 2).toString());
-          ghostRect.setAttribute('width', (width - 4).toString());
-          ghostRect.setAttribute('height', (height - 4).toString());
-          ghostRect.setAttribute('rx', '8');
-          ghostRect.setAttribute('ry', '8');
-          ghostRect.setAttribute('fill', 'rgba(249, 115, 22, 0.12)');
-          ghostRect.setAttribute('stroke', '#f97316');
-          ghostRect.setAttribute('stroke-width', '2');
-          ghostRect.setAttribute('stroke-dasharray', '6,4');
-          placeholderG.appendChild(ghostRect);
-
-          const ghostText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-          ghostText.setAttribute('x', (x + width / 2).toString());
-          ghostText.setAttribute('y', (initialY + height / 2 + 5).toString());
-          ghostText.setAttribute('text-anchor', 'middle');
-          ghostText.setAttribute('font-size', '12');
-          ghostText.setAttribute('font-weight', '800');
-          ghostText.setAttribute('letter-spacing', '0.5');
-          ghostText.setAttribute('fill', '#f97316');
-          ghostText.textContent = '⇣ DROP HERE ⇣';
-          placeholderG.appendChild(ghostText);
-
-          this.previewGroup.appendChild(placeholderG);
+          const initialLineY = computeLineY(initialSlotIndex, initialSlotIndex, deltaY);
+          ghostLineG = createGhostLine(initialLineY);
+          this.previewGroup.appendChild(ghostLineG);
         }
 
         if (isDragging) {
-          // Move the dragged node visually
-          nodeGroup.setAttribute('transform', `translate(0, ${deltaY})`);
+          pendingDeltaY = deltaY;
+          if (!rafId) {
+            rafId = requestAnimationFrame(() => {
+              rafId = null;
+              if (pendingDeltaY === null) return;
+              const currentDeltaY = pendingDeltaY;
 
-          // Calculate closest slot in this column
-          const currentVisualY = initialY + deltaY;
-          let bestIdx = initialSlotIndex;
-          let minDiff = Infinity;
+              // Move dragged node visually
+              nodeGroup.setAttribute('transform', `translate(0, ${currentDeltaY})`);
 
-          slots.forEach((s, idx) => {
-            const diff = Math.abs(currentVisualY - s.y);
-            if (diff < minDiff) {
-              minDiff = diff;
-              bestIdx = idx;
-            }
-          });
+              // Calculate closest slot in this column
+              const currentVisualY = initialY + currentDeltaY;
+              const bestIdx = computeTargetIndex(currentVisualY);
 
-          if (bestIdx !== currentTargetIndex) {
-            currentTargetIndex = bestIdx;
-            const targetSlot = slots[currentTargetIndex];
+              if (bestIdx !== currentTargetIndex) {
+                currentTargetIndex = bestIdx;
+              }
 
-            // Smoothly move the ghost placeholder box to target slot
-            if (placeholderG && targetSlot) {
-              const ghostRect = placeholderG.querySelector('rect');
-              const ghostText = placeholderG.querySelector('text');
-              if (ghostRect) ghostRect.setAttribute('y', (targetSlot.y + 2).toString());
-              if (ghostText) ghostText.setAttribute('y', (targetSlot.y + height / 2 + 5).toString());
-            }
-          }
+              const lineY = computeLineY(currentTargetIndex, initialSlotIndex, currentDeltaY);
+              updateGhostLine(lineY);
 
-          // Live Wire Tracking: move socket coords during drag
-          const pos = this.nodePositions[id];
-          if (pos) {
-            const shiftY = deltaY;
-            if (pos.outY !== undefined) pos.outY = (pos.y + 84) + shiftY;
-            if (pos.inY !== undefined) pos.inY = (pos.y + 84) + shiftY;
-            if (pos.transferOutY !== undefined) pos.transferOutY = (pos.y + 96) + shiftY;
-            this.renderEdges();
+              // Live Wire Tracking: move socket coords during drag
+              const pos = this.nodePositions[id];
+              if (pos) {
+                if (pos.outY !== undefined) pos.outY = (pos.y + 84) + currentDeltaY;
+                if (pos.inY !== undefined) pos.inY = (pos.y + 84) + currentDeltaY;
+                if (pos.transferOutY !== undefined) pos.transferOutY = (pos.y + 96) + currentDeltaY;
+                this.renderEdges();
+              }
+            });
           }
         }
       };
@@ -837,13 +951,20 @@ export class FlowCanvas {
         window.removeEventListener('pointermove', onWindowPointerMove);
         window.removeEventListener('pointerup', onWindowPointerUp);
         window.removeEventListener('pointercancel', onWindowPointerUp);
+        document.body.style.cursor = '';
         this.activeDragCleanup = null;
 
-        // Clean up ghost preview placeholder immediately
-        if (placeholderG) {
-          placeholderG.remove();
-          placeholderG = null;
+        if (rafId) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
         }
+
+        if (ghostLineG) {
+          ghostLineG.remove();
+          ghostLineG = null;
+        }
+
+        nodeGroup.classList.remove('node-dragging');
 
         if (!isDragging) {
           // Normal click -> Select node for inspector
@@ -870,7 +991,16 @@ export class FlowCanvas {
         window.removeEventListener('pointermove', onWindowPointerMove);
         window.removeEventListener('pointerup', onWindowPointerUp);
         window.removeEventListener('pointercancel', onWindowPointerUp);
-        if (placeholderG) placeholderG.remove();
+        document.body.style.cursor = '';
+        if (rafId) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+        }
+        if (ghostLineG) {
+          ghostLineG.remove();
+          ghostLineG = null;
+        }
+        nodeGroup.classList.remove('node-dragging');
       };
 
       window.addEventListener('pointermove', onWindowPointerMove);
