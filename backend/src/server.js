@@ -38,8 +38,8 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Fallback to frontend index.html for SPA routes
-app.get('*', (req, res, next) => {
+// Fallback to frontend index.html for SPA routes (Express 5 compatible)
+app.use((req, res, next) => {
   if (req.url.startsWith('/api')) return next();
   res.sendFile(path.join(FRONTEND_DIR, 'index.html'));
 });

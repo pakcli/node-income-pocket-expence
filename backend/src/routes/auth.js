@@ -207,7 +207,15 @@ router.post('/switch-account', (req, res) => {
     return res.json({
       message: `Berhasil beralih ke profil ${user.display_name}`,
       token,
-      user
+      user: {
+        id: user.id,
+        email: user.email,
+        displayName: user.display_name,
+        display_name: user.display_name,
+        role: user.role,
+        photoUrl: user.photo_url,
+        preferredLocale: user.preferred_locale
+      }
     });
   } catch (err) {
     return res.status(500).json({ error: 'Gagal beralih akun.' });
