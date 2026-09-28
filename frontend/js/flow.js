@@ -160,19 +160,19 @@ export class FlowCanvas {
       store.state.expenseCategories.length,
       3
     );
-    const nodeHeight = 90;
-    const spacing = 14;
-    const totalNodeHeight = 76;
+    const nodeHeight = 104;
+    const spacing = 16;
+    const totalNodeHeight = 84;
 
     let height;
     if (this.mode === 'simple') {
       height = Math.max(380, this.container.clientHeight || 380);
     } else if (this.mode === 'both') {
       const neededHeight = 16 + totalNodeHeight + 16 + 38 + (maxColCount * (nodeHeight + spacing)) + 50;
-      height = Math.max(480, neededHeight, this.container.clientHeight || 480);
+      height = Math.max(500, neededHeight, this.container.clientHeight || 500);
     } else { // 'irl'
-      const neededHeight = maxColCount * (nodeHeight + spacing) + 80;
-      height = Math.max(440, neededHeight, this.container.clientHeight || 440);
+      const neededHeight = maxColCount * (nodeHeight + spacing) + 90;
+      height = Math.max(460, neededHeight, this.container.clientHeight || 460);
     }
 
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -385,8 +385,8 @@ export class FlowCanvas {
     const totalBalance = store.getTotalBalance();
     const totalExpense = store.getTotalExpense();
 
-    const nodeWidth = Math.min(250, Math.max(195, width * 0.27));
-    const totalNodeHeight = 76;
+    const nodeWidth = Math.min(265, Math.max(215, width * 0.28));
+    const totalNodeHeight = 84;
 
     const col1X = Math.max(20, width * 0.04);
     const col2X = width * 0.38;
@@ -531,7 +531,7 @@ export class FlowCanvas {
         columnKey: 'income',
         x, y, width: nodeWidth, height: nodeHeight,
         outX: x + nodeWidth,
-        outY: y + 68
+        outY: y + 78
       };
 
       this.createBlenderNode(this.nodesGroup, {
@@ -546,7 +546,7 @@ export class FlowCanvas {
         currentValue: i18n.formatCurrency(inc.total),
         valueLabel: 'Total Dana Masuk',
         inputs: [],
-        outputs: [{ label: 'Transfer Out ▶', yOffset: 68, color: '#10b981' }],
+        outputs: [{ label: 'Transfer Out ▶', yOffset: 78, color: '#10b981' }],
         selected: this.selectedNodeId === inc.id
       });
     });
@@ -560,11 +560,11 @@ export class FlowCanvas {
         columnKey: 'pocket',
         x, y, width: nodeWidth, height: nodeHeight,
         inX: x,
-        inY: y + 54,
+        inY: y + 74,
         outX: x + nodeWidth,
-        outY: y + 54,
+        outY: y + 74,
         transferOutX: x + nodeWidth,
-        transferOutY: y + 74
+        transferOutY: y + 90
       };
 
       this.createBlenderNode(this.nodesGroup, {
@@ -578,10 +578,10 @@ export class FlowCanvas {
         badge: pkt.category.toUpperCase(),
         currentValue: i18n.formatCurrency(pkt.balance),
         valueLabel: 'Saldo Sekarang',
-        inputs: [{ label: 'Inflow (Masuk)', yOffset: 54, color: '#38bdf8' }],
+        inputs: [{ label: 'Inflow', yOffset: 74, color: '#38bdf8' }],
         outputs: [
-          { label: 'Belanja Out ▶', yOffset: 54, color: '#f87171' },
-          { label: 'Transfer ⇄', yOffset: 74, color: '#c084fc' }
+          { label: 'Belanja Out ▶', yOffset: 74, color: '#f87171' },
+          { label: 'Transfer ⇄', yOffset: 90, color: '#c084fc' }
         ],
         selected: this.selectedNodeId === pkt.id
       });
@@ -596,7 +596,7 @@ export class FlowCanvas {
         columnKey: 'expense',
         x, y, width: nodeWidth, height: nodeHeight,
         inX: x,
-        inY: y + 68
+        inY: y + 78
       };
 
       this.createBlenderNode(this.nodesGroup, {
@@ -610,7 +610,7 @@ export class FlowCanvas {
         badge: 'EXPENSE',
         currentValue: i18n.formatCurrency(exp.total),
         valueLabel: 'Total Pengeluaran',
-        inputs: [{ label: 'Bayar In', yOffset: 68, color: '#f87171' }],
+        inputs: [{ label: 'Bayar In', yOffset: 78, color: '#f87171' }],
         outputs: [],
         selected: this.selectedNodeId === exp.id
       });
@@ -625,7 +625,7 @@ export class FlowCanvas {
     const pockets = this.getSortedItems(store.state.pockets, 'pocket');
     const expenses = this.getSortedItems(store.state.expenseCategories, 'expense');
 
-    const nodeWidth = Math.min(245, Math.max(195, width * 0.27));
+    const nodeWidth = Math.min(265, Math.max(215, width * 0.28));
 
     const col1X = width * 0.04;
     const col2X = width * 0.38;
@@ -684,7 +684,7 @@ export class FlowCanvas {
         columnKey: 'income',
         x, y, width: nodeWidth, height: nodeHeight,
         outX: x + nodeWidth,
-        outY: y + 68
+        outY: y + 78
       };
 
       this.createBlenderNode(this.nodesGroup, {
@@ -699,7 +699,7 @@ export class FlowCanvas {
         currentValue: i18n.formatCurrency(inc.total),
         valueLabel: 'Total Dana Masuk',
         inputs: [],
-        outputs: [{ label: 'Transfer Out ▶', yOffset: 68, color: '#10b981' }],
+        outputs: [{ label: 'Transfer Out ▶', yOffset: 78, color: '#10b981' }],
         selected: this.selectedNodeId === inc.id
       });
     });
@@ -713,11 +713,11 @@ export class FlowCanvas {
         columnKey: 'pocket',
         x, y, width: nodeWidth, height: nodeHeight,
         inX: x,
-        inY: y + 54,
+        inY: y + 74,
         outX: x + nodeWidth,
-        outY: y + 54,
+        outY: y + 74,
         transferOutX: x + nodeWidth,
-        transferOutY: y + 74
+        transferOutY: y + 90
       };
 
       this.createBlenderNode(this.nodesGroup, {
@@ -731,10 +731,10 @@ export class FlowCanvas {
         badge: pkt.category.toUpperCase(),
         currentValue: i18n.formatCurrency(pkt.balance),
         valueLabel: 'Saldo Sekarang',
-        inputs: [{ label: 'Inflow (Masuk)', yOffset: 54, color: '#38bdf8' }],
+        inputs: [{ label: 'Inflow', yOffset: 74, color: '#38bdf8' }],
         outputs: [
-          { label: 'Belanja Out ▶', yOffset: 54, color: '#f87171' },
-          { label: 'Transfer ⇄', yOffset: 74, color: '#c084fc' }
+          { label: 'Belanja Out ▶', yOffset: 74, color: '#f87171' },
+          { label: 'Transfer ⇄', yOffset: 90, color: '#c084fc' }
         ],
         selected: this.selectedNodeId === pkt.id
       });
@@ -749,7 +749,7 @@ export class FlowCanvas {
         columnKey: 'expense',
         x, y, width: nodeWidth, height: nodeHeight,
         inX: x,
-        inY: y + 68
+        inY: y + 78
       };
 
       this.createBlenderNode(this.nodesGroup, {
@@ -763,7 +763,7 @@ export class FlowCanvas {
         badge: 'EXPENSE',
         currentValue: i18n.formatCurrency(exp.total),
         valueLabel: 'Total Pengeluaran',
-        inputs: [{ label: 'Bayar In', yOffset: 68, color: '#f87171' }],
+        inputs: [{ label: 'Bayar In', yOffset: 78, color: '#f87171' }],
         outputs: [],
         selected: this.selectedNodeId === exp.id
       });
@@ -1065,8 +1065,8 @@ export class FlowCanvas {
     // Content: Value Label
     const valLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     valLabel.setAttribute('x', (x + 12).toString());
-    valLabel.setAttribute('y', (y + 38).toString());
-    valLabel.setAttribute('font-size', '10');
+    valLabel.setAttribute('y', (y + 36).toString());
+    valLabel.setAttribute('font-size', '9.5');
     valLabel.setAttribute('font-weight', '600');
     valLabel.setAttribute('fill', '#94a3b8');
     valLabel.textContent = `${valueLabel}:`;
@@ -1075,7 +1075,7 @@ export class FlowCanvas {
     // Big Currency Total Value
     const valText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     valText.setAttribute('x', (x + 12).toString());
-    valText.setAttribute('y', (y + 54).toString());
+    valText.setAttribute('y', (y + 52).toString());
     valText.setAttribute('font-size', '14');
     valText.setAttribute('font-weight', '900');
     valText.setAttribute('font-family', "'JetBrains Mono', monospace");
@@ -1086,12 +1086,12 @@ export class FlowCanvas {
     valText.textContent = currentValue;
     group.appendChild(valText);
 
-    // Subtitle Info (e.g. "4 Kantong Aktif")
+    // Subtitle Info (e.g. "4 Kantong Aktif") - cleanly placed with ample padding
     if (subtitle) {
       const subText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       subText.setAttribute('x', (x + 12).toString());
-      subText.setAttribute('y', (y + 78).toString());
-      subText.setAttribute('font-size', '9');
+      subText.setAttribute('y', (y + 70).toString());
+      subText.setAttribute('font-size', '9.5');
       subText.setAttribute('font-weight', '600');
       subText.setAttribute('fill', '#64748b');
       subText.textContent = subtitle;
@@ -1221,10 +1221,10 @@ export class FlowCanvas {
     badgeText.textContent = badge;
     group.appendChild(badgeText);
 
-    // 3. Content Body - Line 1: Current Value
+    // 3. Content Body - Value Section
     const valLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     valLabel.setAttribute('x', (x + 12).toString());
-    valLabel.setAttribute('y', (y + 36).toString());
+    valLabel.setAttribute('y', (y + 38).toString());
     valLabel.setAttribute('font-size', '9.5');
     valLabel.setAttribute('font-weight', '600');
     valLabel.setAttribute('fill', '#94a3b8');
@@ -1233,7 +1233,7 @@ export class FlowCanvas {
 
     const valText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     valText.setAttribute('x', (x + 12).toString());
-    valText.setAttribute('y', (y + 50).toString());
+    valText.setAttribute('y', (y + 53).toString());
     valText.setAttribute('font-size', '13.5');
     valText.setAttribute('font-weight', '800');
     valText.setAttribute('font-family', "'JetBrains Mono', monospace");
@@ -1244,60 +1244,60 @@ export class FlowCanvas {
     valText.textContent = currentValue;
     group.appendChild(valText);
 
-    // Divider Line
+    // Subtle Divider Line separating value section from sockets section
     const divLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
     divLine.setAttribute('x1', (x + 8).toString());
-    divLine.setAttribute('y1', (y + 55).toString());
+    divLine.setAttribute('y1', (y + 61).toString());
     divLine.setAttribute('x2', (x + width - 8).toString());
-    divLine.setAttribute('y2', (y + 55).toString());
-    divLine.setAttribute('stroke', '#2d3340');
-    divLine.setAttribute('stroke-width', '1');
+    divLine.setAttribute('y2', (y + 61).toString());
+    divLine.setAttribute('stroke', 'rgba(255, 255, 255, 0.08)');
+    divLine.setAttribute('stroke-dasharray', '2 2');
     group.appendChild(divLine);
 
-    // 4. Input Sockets & Labels (Left side)
+    // 4. Input Sockets & Labels (Left side, located strictly BELOW divider line)
     inputs.forEach(inp => {
       const socketY = y + inp.yOffset;
       const socketPin = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
       socketPin.setAttribute('cx', x.toString());
       socketPin.setAttribute('cy', socketY.toString());
-      socketPin.setAttribute('r', '5');
+      socketPin.setAttribute('r', '4.5');
       socketPin.setAttribute('fill', inp.color || '#38bdf8');
       socketPin.setAttribute('stroke', '#111827');
-      socketPin.setAttribute('stroke-width', '2');
+      socketPin.setAttribute('stroke-width', '1.5');
       socketPin.classList.add('blender-socket');
       group.appendChild(socketPin);
 
       const socketLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       socketLabel.setAttribute('x', (x + 10).toString());
-      socketLabel.setAttribute('y', (socketY + 3.5).toString());
-      socketLabel.setAttribute('font-size', '9');
+      socketLabel.setAttribute('y', (socketY + 3).toString());
+      socketLabel.setAttribute('font-size', '8.5');
       socketLabel.setAttribute('font-weight', '600');
-      socketLabel.setAttribute('fill', '#cbd5e1');
-      socketLabel.textContent = `● ${inp.label}`;
+      socketLabel.setAttribute('fill', '#94a3b8');
+      socketLabel.textContent = inp.label;
       group.appendChild(socketLabel);
     });
 
-    // 5. Output Sockets & Labels (Right side)
+    // 5. Output Sockets & Labels (Right side, located strictly BELOW divider line)
     outputs.forEach(out => {
       const socketY = y + out.yOffset;
       const socketPin = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
       socketPin.setAttribute('cx', (x + width).toString());
       socketPin.setAttribute('cy', socketY.toString());
-      socketPin.setAttribute('r', '5');
+      socketPin.setAttribute('r', '4.5');
       socketPin.setAttribute('fill', out.color || '#f87171');
       socketPin.setAttribute('stroke', '#111827');
-      socketPin.setAttribute('stroke-width', '2');
+      socketPin.setAttribute('stroke-width', '1.5');
       socketPin.classList.add('blender-socket');
       group.appendChild(socketPin);
 
       const socketLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       socketLabel.setAttribute('x', (x + width - 10).toString());
-      socketLabel.setAttribute('y', (socketY + 3.5).toString());
+      socketLabel.setAttribute('y', (socketY + 3).toString());
       socketLabel.setAttribute('text-anchor', 'end');
-      socketLabel.setAttribute('font-size', '9');
+      socketLabel.setAttribute('font-size', '8.5');
       socketLabel.setAttribute('font-weight', '600');
-      socketLabel.setAttribute('fill', '#cbd5e1');
-      socketLabel.textContent = `${out.label} ●`;
+      socketLabel.setAttribute('fill', '#94a3b8');
+      socketLabel.textContent = out.label;
       group.appendChild(socketLabel);
     });
 

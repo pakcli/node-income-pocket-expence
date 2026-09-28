@@ -180,13 +180,13 @@ class I18nManager {
       return new Intl.NumberFormat('id-ID', {
         style: 'currency',
         currency: 'IDR',
-        maximumFractionDigits: 0
+        maximumFractionDigits: (num % 1 === 0) ? 0 : 2
       }).format(num);
     } else {
       return new Intl.NumberFormat('en-US', {
         style: 'currency',
         currency: 'USD',
-        maximumFractionDigits: 2
+        maximumFractionDigits: (num % 1 === 0) ? 0 : 2
       }).format(num);
     }
   }
