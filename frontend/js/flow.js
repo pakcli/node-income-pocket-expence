@@ -1,5 +1,5 @@
 // Flow Canvas Engine - Blender Node Style (Brief v04)
-// Features: Interactive Up/Down Drag Sorting with Live Drop Target Preview, Non-Overlapping Blender Frames, Live Wire Tracking
+// Features: Bulletproof Window Pointer Drag-and-Drop, Live Drop Target Ghost Slot, Clean Frame Headers, Auto-Expanding Canvas Height
 
 import { store } from './store.js';
 import { i18n } from './i18n.js';
@@ -16,10 +16,10 @@ export class FlowCanvas {
     // Load custom sort order for each column
     this.sortOrder = this.loadSortOrder();
 
-    // Active drag state
-    this.dragState = null;
-    this.nodePositions = {}; // id -> { x, y, width, height, type, ... }
-    this.columnSlots = {};   // columnKey -> [ { y, index, height } ]
+    // Node registry
+    this.nodePositions = {};
+    this.columnSlots = {};
+    this.activeDragCleanup = null;
 
     window.addEventListener('resize', () => this.render());
   }
@@ -51,7 +51,6 @@ export class FlowCanvas {
     }
   }
 
-  // Get items sorted according to custom sortOrder
   getSortedItems(items, columnKey) {
     const order = this.sortOrder[columnKey] || [];
     const sorted = [...items].sort((a, b) => {
@@ -68,10 +67,28 @@ export class FlowCanvas {
 
   render() {
     if (!this.container) return;
+
+    // If an active drag listener was lingering, clean it up safely
+    if (this.activeDragCleanup) {
+      this.activeDragCleanup();
+      this.activeDragCleanup = null;
+    }
+
     this.container.innerHTML = '';
 
     const width = this.container.clientWidth || 800;
-    const height = Math.max(580, this.container.clientHeight || 580);
+
+    // Calculate required canvas height dynamically so nodes NEVER get cramped or overlap
+    const maxColCount = Math.max(
+      store.state.incomeSources.length,
+      store.state.pockets.length,
+      store.state.expenseCategories.length,
+      3
+    );
+    const nodeHeight = 114;
+    const spacing = 24;
+    const neededHeight = maxColCount * (nodeHeight + spacing) + 120;
+    const height = Math.max(580, neededHeight, this.container.clientHeight || 580);
 
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('width', '100%');
@@ -83,22 +100,18 @@ export class FlowCanvas {
     // Defs for Blender-style filters, markers & gradients
     const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
     defs.innerHTML = `
-      <!-- Drop Shadow for Blender Nodes -->
       <filter id="blender-shadow" x="-15%" y="-15%" width="130%" height="130%">
         <feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#000000" flood-opacity="0.6" />
       </filter>
 
-      <!-- Selection Glow for Active Blender Node -->
       <filter id="blender-glow" x="-20%" y="-20%" width="140%" height="140%">
         <feDropShadow dx="0" dy="0" stdDeviation="5" flood-color="#f97316" flood-opacity="0.9" />
       </filter>
 
-      <!-- Dragging Drop Shadow -->
       <filter id="blender-drag-shadow" x="-25%" y="-25%" width="150%" height="150%">
-        <feDropShadow dx="0" dy="14" stdDeviation="12" flood-color="#000000" flood-opacity="0.85" />
+        <feDropShadow dx="0" dy="16" stdDeviation="14" flood-color="#000000" flood-opacity="0.9" />
       </filter>
 
-      <!-- Smooth Socket Arrow Markers -->
       <marker id="socket-arrow-green" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
         <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#10b981" />
       </marker>
@@ -120,13 +133,13 @@ export class FlowCanvas {
     svg.appendChild(framesGroup);
     this.framesGroup = framesGroup;
 
-    // Layer 2: Drop Target Preview Group (Ghost Slot)
+    // Layer 2: Drop Target Ghost Preview Group
     const previewGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     previewGroup.classList.add('preview-group');
     svg.appendChild(previewGroup);
     this.previewGroup = previewGroup;
 
-    // Layer 3: Connecting Wire Edges Group
+    // Layer 3: Wire Edges Group
     const edgesGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     edgesGroup.classList.add('edges-group');
     svg.appendChild(edgesGroup);
@@ -139,37 +152,33 @@ export class FlowCanvas {
     this.nodesGroup = nodesGroup;
 
     if (this.mode === 'simple') {
-      this.renderSimpleMode(width, height);
+      this.renderSimpleMode(width, height, nodeHeight, spacing);
     } else {
-      this.renderIRLMode(width, height);
+      this.renderIRLMode(width, height, nodeHeight, spacing);
     }
 
     this.container.appendChild(svg);
   }
 
-  renderSimpleMode(width, height) {
+  renderSimpleMode(width, height, nodeHeight, spacing) {
     const incomes = this.getSortedItems(store.state.incomeSources, 'income');
     const pockets = this.getSortedItems(store.state.pockets, 'pocket');
     const expenses = this.getSortedItems(store.state.expenseCategories, 'expense');
 
-    const nodeWidth = Math.min(240, Math.max(195, width * 0.28));
-    const nodeHeight = 112;
+    const nodeWidth = Math.min(250, Math.max(200, width * 0.28));
 
     const col1X = Math.max(20, width * 0.04);
     const col2X = width * 0.40;
     const col3X = Math.min(width - nodeWidth - 20, width * 0.74);
 
-    const calcY = (items, totalHeight) => {
-      const spacing = 22;
-      const count = items.length;
-      const totalBlock = count * nodeHeight + (count - 1) * spacing;
-      const startY = Math.max(50, (totalHeight - totalBlock) / 2);
+    const calcY = (items) => {
+      const startY = 60;
       return items.map((_, i) => startY + i * (nodeHeight + spacing));
     };
 
-    const incY = calcY(incomes, height);
-    const pktY = calcY(pockets, height);
-    const expY = calcY(expenses, height);
+    const incY = calcY(incomes);
+    const pktY = calcY(pockets);
+    const expY = calcY(expenses);
 
     this.nodePositions = {};
     this.columnSlots = {
@@ -178,32 +187,32 @@ export class FlowCanvas {
       expense: expY.map((y, idx) => ({ y, index: idx, x: col3X, width: nodeWidth, height: nodeHeight }))
     };
 
-    // 1. Render Blender Frames (Fixed Non-Overlapping Layout)
+    // 1. Render Blender Frames (Clean, Never Overlapping)
     this.renderBlenderFrame(this.framesGroup, {
       title: 'INFLOW SOURCES',
       accentColor: '#10b981',
       x: col1X - 12,
-      y: Math.min(...incY) - 36,
+      y: 20,
       width: nodeWidth + 24,
-      height: (incomes.length * nodeHeight) + ((incomes.length - 1) * 22) + 50
+      height: (incomes.length * nodeHeight) + (incomes.length * spacing) + 40
     });
 
     this.renderBlenderFrame(this.framesGroup, {
       title: 'POCKETS & WALLETS',
       accentColor: '#38bdf8',
       x: col2X - 12,
-      y: Math.min(...pktY) - 36,
+      y: 20,
       width: nodeWidth + 24,
-      height: (pockets.length * nodeHeight) + ((pockets.length - 1) * 22) + 50
+      height: (pockets.length * nodeHeight) + (pockets.length * spacing) + 40
     });
 
     this.renderBlenderFrame(this.framesGroup, {
       title: 'OUTFLOW EXPENSES',
       accentColor: '#f87171',
       x: col3X - 12,
-      y: Math.min(...expY) - 36,
+      y: 20,
       width: nodeWidth + 24,
-      height: (expenses.length * nodeHeight) + ((expenses.length - 1) * 22) + 50
+      height: (expenses.length * nodeHeight) + (expenses.length * spacing) + 40
     });
 
     // 2. Render Incomes (Col 1)
@@ -298,28 +307,25 @@ export class FlowCanvas {
     this.renderEdges();
   }
 
-  renderIRLMode(width, height) {
+  renderIRLMode(width, height, nodeHeight, spacing) {
     const incomes = this.getSortedItems(store.state.incomeSources, 'income');
     const pockets = this.getSortedItems(store.state.pockets, 'pocket');
     const expenses = this.getSortedItems(store.state.expenseCategories, 'expense');
 
-    const nodeWidth = Math.min(235, Math.max(190, width * 0.27));
-    const nodeHeight = 114;
+    const nodeWidth = Math.min(245, Math.max(195, width * 0.27));
 
     const col1X = width * 0.04;
     const col2X = width * 0.38;
     const col3X = width * 0.72;
 
-    const calcY = (items, totalHeight, spacing = 24) => {
-      const count = items.length;
-      const totalBlock = count * nodeHeight + (count - 1) * spacing;
-      const startY = Math.max(50, (totalHeight - totalBlock) / 2);
-      return items.map((_, i) => startY + i * (nodeHeight + spacing));
+    const calcY = (items, customSpacing = spacing) => {
+      const startY = 60;
+      return items.map((_, i) => startY + i * (nodeHeight + customSpacing));
     };
 
-    const incY = calcY(incomes, height);
-    const pktY = calcY(pockets, height, 30);
-    const expY = calcY(expenses, height);
+    const incY = calcY(incomes);
+    const pktY = calcY(pockets, spacing + 6);
+    const expY = calcY(expenses);
 
     this.nodePositions = {};
     this.columnSlots = {
@@ -328,32 +334,32 @@ export class FlowCanvas {
       expense: expY.map((y, idx) => ({ y, index: idx, x: col3X, width: nodeWidth, height: nodeHeight }))
     };
 
-    // Render Frames for IRL Mode (Non-overlapping)
+    // Render Frames for IRL Mode
     this.renderBlenderFrame(this.framesGroup, {
       title: 'INFLOW SOURCES',
       accentColor: '#10b981',
       x: col1X - 12,
-      y: Math.min(...incY) - 36,
+      y: 20,
       width: nodeWidth + 24,
-      height: (incomes.length * nodeHeight) + ((incomes.length - 1) * 24) + 50
+      height: (incomes.length * nodeHeight) + (incomes.length * spacing) + 40
     });
 
     this.renderBlenderFrame(this.framesGroup, {
       title: 'WALLETS & TRANSFERS',
       accentColor: '#38bdf8',
       x: col2X - 12,
-      y: Math.min(...pktY) - 36,
+      y: 20,
       width: nodeWidth + 24,
-      height: (pockets.length * nodeHeight) + ((pockets.length - 1) * 30) + 50
+      height: (pockets.length * nodeHeight) + (pockets.length * (spacing + 6)) + 40
     });
 
     this.renderBlenderFrame(this.framesGroup, {
       title: 'EXPENSE OUTFLOWS',
       accentColor: '#f87171',
       x: col3X - 12,
-      y: Math.min(...expY) - 36,
+      y: 20,
       width: nodeWidth + 24,
-      height: (expenses.length * nodeHeight) + ((expenses.length - 1) * 24) + 50
+      height: (expenses.length * nodeHeight) + (expenses.length * spacing) + 40
     });
 
     // Incomes
@@ -453,7 +459,7 @@ export class FlowCanvas {
     this.renderEdges();
   }
 
-  // Draw Blender Frame (Clean Header without text collision)
+  // Draw Clean Non-Overlapping Blender Frame
   renderBlenderFrame(parent, { title, accentColor, x, y, width, height }) {
     const frameG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     frameG.classList.add('blender-frame');
@@ -467,7 +473,7 @@ export class FlowCanvas {
     rect.setAttribute('rx', '10');
     rect.setAttribute('ry', '10');
     rect.setAttribute('fill', 'rgba(15, 23, 42, 0.45)');
-    rect.setAttribute('stroke', 'rgba(255, 255, 255, 0.12)');
+    rect.setAttribute('stroke', 'rgba(255, 255, 255, 0.10)');
     rect.setAttribute('stroke-width', '1.5');
     rect.setAttribute('stroke-dasharray', '5,4');
     frameG.appendChild(rect);
@@ -477,52 +483,52 @@ export class FlowCanvas {
     headerRect.setAttribute('x', x.toString());
     headerRect.setAttribute('y', y.toString());
     headerRect.setAttribute('width', width.toString());
-    headerRect.setAttribute('height', '26');
+    headerRect.setAttribute('height', '28');
     headerRect.setAttribute('rx', '8');
     headerRect.setAttribute('ry', '8');
     headerRect.setAttribute('fill', 'rgba(30, 41, 59, 0.85)');
     headerRect.setAttribute('stroke', accentColor);
     headerRect.setAttribute('stroke-width', '1');
-    headerRect.setAttribute('stroke-opacity', '0.5');
+    headerRect.setAttribute('stroke-opacity', '0.45');
     frameG.appendChild(headerRect);
 
-    // Frame Dot + Title Text (Safely Clamped)
+    // Color Accent Dot
     const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
     dot.setAttribute('cx', (x + 12).toString());
-    dot.setAttribute('cy', (y + 13).toString());
+    dot.setAttribute('cy', (y + 14).toString());
     dot.setAttribute('r', '4');
     dot.setAttribute('fill', accentColor);
     frameG.appendChild(dot);
 
+    // Clean Title (Truncated if too long)
     const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     label.setAttribute('x', (x + 22).toString());
-    label.setAttribute('y', (y + 17).toString());
+    label.setAttribute('y', (y + 18).toString());
     label.setAttribute('font-size', '10');
     label.setAttribute('font-weight', '800');
     label.setAttribute('letter-spacing', '0.5');
     label.setAttribute('fill', accentColor);
-    // Truncate cleanly so it never hits the right badge
-    const maxTitleChars = Math.max(8, Math.floor(width / 18));
-    label.textContent = title.length > maxTitleChars ? title.slice(0, maxTitleChars) + '...' : title;
+    const maxChars = Math.max(10, Math.floor((width - 90) / 8));
+    label.textContent = title.length > maxChars ? title.slice(0, maxChars) + '...' : title;
     frameG.appendChild(label);
 
-    // Sort Hint Badge Pill on the Right
-    const badgeW = 62;
+    // Distinct Pill Badge on Right
+    const badgeW = 60;
     const badgeX = x + width - badgeW - 8;
     const badgeRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
     badgeRect.setAttribute('x', badgeX.toString());
-    badgeRect.setAttribute('y', (y + 4).toString());
+    badgeRect.setAttribute('y', (y + 5).toString());
     badgeRect.setAttribute('width', badgeW.toString());
     badgeRect.setAttribute('height', '18');
     badgeRect.setAttribute('rx', '4');
     badgeRect.setAttribute('ry', '4');
-    badgeRect.setAttribute('fill', 'rgba(15, 23, 42, 0.6)');
+    badgeRect.setAttribute('fill', 'rgba(15, 23, 42, 0.7)');
     badgeRect.setAttribute('stroke', 'rgba(255, 255, 255, 0.08)');
     frameG.appendChild(badgeRect);
 
     const hint = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     hint.setAttribute('x', (badgeX + badgeW / 2).toString());
-    hint.setAttribute('y', (y + 16).toString());
+    hint.setAttribute('y', (y + 17).toString());
     hint.setAttribute('text-anchor', 'middle');
     hint.setAttribute('font-size', '9');
     hint.setAttribute('font-weight', '700');
@@ -533,7 +539,6 @@ export class FlowCanvas {
     parent.appendChild(frameG);
   }
 
-  // Draw Connecting Wire Edges
   renderEdges() {
     this.edgesGroup.innerHTML = '';
     const edgeDrawn = new Set();
@@ -582,7 +587,7 @@ export class FlowCanvas {
       group.setAttribute('filter', 'url(#blender-shadow)');
     }
 
-    // 1. Outer Node Body Container (Blender Dark Slate)
+    // 1. Outer Node Body Container
     const bodyRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
     bodyRect.setAttribute('x', x.toString());
     bodyRect.setAttribute('y', y.toString());
@@ -595,7 +600,7 @@ export class FlowCanvas {
     bodyRect.setAttribute('stroke-width', selected ? '2.5' : '1.2');
     group.appendChild(bodyRect);
 
-    // 2. Node Header (Distinct Colored Title Bar)
+    // 2. Node Header
     const headerHeight = 28;
     const headerRect = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     const r = 8;
@@ -613,7 +618,7 @@ export class FlowCanvas {
     headerRect.setAttribute('fill', headerColor);
     group.appendChild(headerRect);
 
-    // Drag Handle Grip Dots
+    // Drag Grip Dots
     const gripG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     gripG.innerHTML = `
       <circle cx="${x + 10}" cy="${y + 11}" r="1.5" fill="rgba(255,255,255,0.7)" />
@@ -623,7 +628,7 @@ export class FlowCanvas {
     `;
     group.appendChild(gripG);
 
-    // Header Title (Node Name)
+    // Header Title
     const headerTitle = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     headerTitle.setAttribute('x', (x + 22).toString());
     headerTitle.setAttribute('y', (y + 18).toString());
@@ -645,7 +650,7 @@ export class FlowCanvas {
     badgeText.textContent = badge;
     group.appendChild(badgeText);
 
-    // 3. Content Body - Line Awal: Current Value (Value Sekarang)
+    // 3. Content Body - Line 1: Current Value
     const valLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     valLabel.setAttribute('x', (x + 12).toString());
     valLabel.setAttribute('y', (y + 44).toString());
@@ -725,37 +730,36 @@ export class FlowCanvas {
       group.appendChild(socketLabel);
     });
 
-    // 6. Interactive Drag & Drop Sort with Live Drop Preview
-    this.attachDragSortListeners(group, id, columnKey, slotIndex, x, y, width, height);
+    // 6. Attach Safe Window-Based Drag Sort Listener
+    this.attachSafeDragSortListeners(group, id, columnKey, slotIndex, x, y, width, height);
 
     parent.appendChild(group);
   }
 
-  attachDragSortListeners(nodeGroup, id, columnKey, initialSlotIndex, x, initialY, width, height) {
-    let startY = 0;
-    let isDragging = false;
-    let placeholderG = null;
-    let currentTargetIndex = initialSlotIndex;
-
+  attachSafeDragSortListeners(nodeGroup, id, columnKey, initialSlotIndex, x, initialY, width, height) {
     const slots = this.columnSlots[columnKey] || [];
 
-    const onPointerDown = (e) => {
-      startY = e.clientY;
-      isDragging = false;
-      currentTargetIndex = initialSlotIndex;
-      nodeGroup.setPointerCapture(e.pointerId);
+    const onPointerDown = (downEvent) => {
+      // Only primary mouse button or touch
+      if (downEvent.button !== 0 && downEvent.pointerType === 'mouse') return;
 
-      const onPointerMove = (moveEvent) => {
+      const startY = downEvent.clientY;
+      let isDragging = false;
+      let placeholderG = null;
+      let currentTargetIndex = initialSlotIndex;
+
+      const onWindowPointerMove = (moveEvent) => {
         const deltaY = moveEvent.clientY - startY;
 
+        // Threshold to initiate drag
         if (!isDragging && Math.abs(deltaY) > 5) {
           isDragging = true;
           nodeGroup.classList.add('node-dragging');
           nodeGroup.setAttribute('filter', 'url(#blender-drag-shadow)');
-          // Bring dragged node to front of SVG
+          // Bring dragged node to the very top layer of the canvas
           this.nodesGroup.appendChild(nodeGroup);
 
-          // Create the Drop Target Preview (Ghost Slot)
+          // Create the Drop Target Ghost Placeholder
           placeholderG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
           placeholderG.classList.add('blender-drop-placeholder');
 
@@ -787,10 +791,10 @@ export class FlowCanvas {
         }
 
         if (isDragging) {
-          // Translate dragged node directly
+          // Move the dragged node visually
           nodeGroup.setAttribute('transform', `translate(0, ${deltaY})`);
 
-          // Calculate current candidate drop slot
+          // Calculate closest slot in this column
           const currentVisualY = initialY + deltaY;
           let bestIdx = initialSlotIndex;
           let minDiff = Infinity;
@@ -807,7 +811,7 @@ export class FlowCanvas {
             currentTargetIndex = bestIdx;
             const targetSlot = slots[currentTargetIndex];
 
-            // Smoothly move the drop preview placeholder to target slot
+            // Smoothly move the ghost placeholder box to target slot
             if (placeholderG && targetSlot) {
               const ghostRect = placeholderG.querySelector('rect');
               const ghostText = placeholderG.querySelector('text');
@@ -816,7 +820,7 @@ export class FlowCanvas {
             }
           }
 
-          // Live Wire Tracking: adjust live socket coordinates during drag
+          // Live Wire Tracking: move socket coords during drag
           const pos = this.nodePositions[id];
           if (pos) {
             const shiftY = deltaY;
@@ -828,25 +832,26 @@ export class FlowCanvas {
         }
       };
 
-      const onPointerUp = (upEvent) => {
-        nodeGroup.releasePointerCapture(upEvent.pointerId);
-        nodeGroup.removeEventListener('pointermove', onPointerMove);
-        nodeGroup.removeEventListener('pointerup', onPointerUp);
-        nodeGroup.classList.remove('node-dragging');
+      const onWindowPointerUp = () => {
+        // ALWAYS remove global window listeners cleanly
+        window.removeEventListener('pointermove', onWindowPointerMove);
+        window.removeEventListener('pointerup', onWindowPointerUp);
+        window.removeEventListener('pointercancel', onWindowPointerUp);
+        this.activeDragCleanup = null;
 
-        // Clean up preview placeholder
+        // Clean up ghost preview placeholder immediately
         if (placeholderG) {
           placeholderG.remove();
           placeholderG = null;
         }
 
         if (!isDragging) {
-          // Click -> Select Node
+          // Normal click -> Select node for inspector
           this.selectNode(id);
           return;
         }
 
-        // Apply Reorder to the column
+        // Apply Reorder
         const currentOrder = [...(this.sortOrder[columnKey] || [])];
         const currentIndex = currentOrder.indexOf(id);
 
@@ -857,12 +862,20 @@ export class FlowCanvas {
           this.saveSortOrder();
         }
 
-        // Re-render canvas with newly sorted slots
+        // Re-render canvas: resets all transform:translate, re-calculates clean non-overlapping coordinates!
         this.render();
       };
 
-      nodeGroup.addEventListener('pointermove', onPointerMove);
-      nodeGroup.addEventListener('pointerup', onPointerUp);
+      this.activeDragCleanup = () => {
+        window.removeEventListener('pointermove', onWindowPointerMove);
+        window.removeEventListener('pointerup', onWindowPointerUp);
+        window.removeEventListener('pointercancel', onWindowPointerUp);
+        if (placeholderG) placeholderG.remove();
+      };
+
+      window.addEventListener('pointermove', onWindowPointerMove);
+      window.addEventListener('pointerup', onWindowPointerUp);
+      window.addEventListener('pointercancel', onWindowPointerUp);
     };
 
     nodeGroup.addEventListener('pointerdown', onPointerDown);
