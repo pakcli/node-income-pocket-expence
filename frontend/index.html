@@ -230,9 +230,14 @@
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
           <span>Detail & Editor Panel</span>
         </div>
-        <button id="btnPanelAddNode" class="btn-action" style="padding: 5px 12px; font-size: 11px; background: #2563eb; color: white;">
-          + Tambah Node
-        </button>
+        <div style="display: flex; gap: 6px; align-items: center;">
+          <button id="btnPanelAddNode" class="btn-action" style="padding: 5px 10px; font-size: 11px; background: #2563eb; color: white;">
+            + Tambah Node
+          </button>
+          <button id="btnCloseInspector" class="btn-action-icon" title="Tutup Inspector Panel" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 4px 6px; font-size: 14px; font-weight: 700;">
+            ✕
+          </button>
+        </div>
       </div>
       <div id="inspectorBody" class="inspector-body">
         <div class="inspector-empty-state">
@@ -250,11 +255,23 @@
           <input type="text" id="ledgerSearchInput" class="search-input" data-i18n-placeholder="search_placeholder" placeholder="Cari catatan, pos pengeluaran, akun...">
         </div>
 
-        <div class="table-filters">
-          <button class="filter-btn active" data-table-filter="all" data-i18n="filter_all">Semua</button>
-          <button class="filter-btn" data-table-filter="income" data-i18n="filter_income">Pemasukan</button>
-          <button class="filter-btn" data-table-filter="expense" data-i18n="filter_expense">Pengeluaran</button>
-          <button class="filter-btn" data-table-filter="transfer" data-i18n="filter_transfer">Pindah Saldo</button>
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+          <!-- Node Click Interaction Mode Dropdown -->
+          <div class="table-interaction-mode-group" style="display: flex; align-items: center; gap: 6px;">
+            <span style="font-size: 11px; color: var(--text-muted); font-weight: 600;">Saat Node Diklik:</span>
+            <select id="nodeClickActionSelect" class="form-select" style="padding: 4px 8px; font-size: 11px; width: auto; background: rgba(15, 23, 42, 0.8);">
+              <option value="both" selected>🔍 Keduanya (Inspector + Sorot Tabel)</option>
+              <option value="table">📋 Sorot Baris Tabel Saja</option>
+              <option value="inspector">📌 Buka Inspector Saja</option>
+            </select>
+          </div>
+
+          <div class="table-filters">
+            <button class="filter-btn active" data-table-filter="all" data-i18n="filter_all">Semua</button>
+            <button class="filter-btn" data-table-filter="income" data-i18n="filter_income">Pemasukan</button>
+            <button class="filter-btn" data-table-filter="expense" data-i18n="filter_expense">Pengeluaran</button>
+            <button class="filter-btn" data-table-filter="transfer" data-i18n="filter_transfer">Pindah Saldo</button>
+          </div>
         </div>
       </div>
 
@@ -262,6 +279,7 @@
         <table class="ledger-table">
           <thead>
             <tr>
+              <th style="width: 38px; text-align: center;" title="Rel Timeline Vertikal">TIMELINE</th>
               <th data-i18n="ledger_date">Tanggal</th>
               <th data-i18n="ledger_type">Jenis</th>
               <th data-i18n="ledger_change">Perubahan</th>
@@ -271,6 +289,47 @@
               <th>Kantong Terkait</th>
               <th data-i18n="ledger_note">Catatan</th>
               <th data-i18n="ledger_actions" style="text-align: right;">Aksi</th>
+            </tr>
+            <!-- Interactive Inline Quick-Add Row below header -->
+            <tr id="tableQuickAddRow" class="table-quick-add-row">
+              <td style="text-align: center; color: #10b981; font-weight: 800; font-size: 14px;" title="Tambah Transaksi Cepat">⚡</td>
+              <td><input type="date" id="quickAddDate" class="quick-input" title="Tanggal Transaksi"></td>
+              <td>
+                <select id="quickAddType" class="quick-select" title="Jenis Transaksi">
+                  <option value="expense">EXPENSE</option>
+                  <option value="income">INCOME</option>
+                  <option value="transfer">TRANSFER</option>
+                </select>
+              </td>
+              <td>
+                <div style="display: flex; gap: 4px; align-items: center; position: relative;">
+                  <input type="number" id="quickAddAmount" class="quick-input" placeholder="Rp Pokok" min="1" required style="width: 80px;">
+                  <button type="button" id="btnQuickAddFeesToggle" class="quick-btn-icon" title="Rincian Admin & Ongkir">🏷️</button>
+                  <div id="quickAddFeesPopover" class="quick-fees-popover" style="display: none;">
+                    <div style="font-size: 10px; font-weight: 700; color: #94a3b8; margin-bottom: 4px;">RINCIAN BIAYA</div>
+                    <label style="font-size: 9px; color: #cbd5e1;">Biaya Admin:</label>
+                    <input type="number" id="quickAddAdminFee" class="quick-input" placeholder="0" min="0" value="0" style="margin-bottom: 4px;">
+                    <label style="font-size: 9px; color: #cbd5e1;">Ongkos Kirim:</label>
+                    <input type="number" id="quickAddShippingFee" class="quick-input" placeholder="0" min="0" value="0">
+                  </div>
+                </div>
+              </td>
+              <td style="font-size: 11px; color: var(--text-muted); font-style: italic; white-space: nowrap;">Auto-Calc</td>
+              <td>
+                <select id="quickAddSource" class="quick-select" title="Sumber Dana">
+                  <!-- Injected via app.js -->
+                </select>
+              </td>
+              <td>
+                <select id="quickAddTarget" class="quick-select" title="Pos / Rekening Tujuan">
+                  <!-- Injected via app.js -->
+                </select>
+              </td>
+              <td id="quickAddPocketLabel" style="font-size: 11px; color: #93c5fd; white-space: nowrap;">-</td>
+              <td><input type="text" id="quickAddNote" class="quick-input" placeholder="Catatan transaksi..." style="min-width: 110px;"></td>
+              <td style="text-align: right; white-space: nowrap;">
+                <button type="button" id="btnQuickAddSubmit" class="btn-action btn-income" style="padding: 4px 10px; font-size: 11px; font-weight: 700;">+ Catat</button>
+              </td>
             </tr>
           </thead>
           <tbody id="ledgerTableBody">

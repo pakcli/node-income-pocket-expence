@@ -8,6 +8,7 @@ import { TimelineController } from './timeline.js?v=04.2';
 let flowCanvas = null;
 let timelineController = null;
 let currentView = 'flow'; // 'flow' | 'table' | 'split'
+let isInspectorOpen = true;
 let tableFilter = 'all'; // 'all' | 'income' | 'expense' | 'transfer'
 let tableSearchQuery = '';
 
@@ -28,6 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateKPIs();
     if (flowCanvas) flowCanvas.render();
     if (timelineController) timelineController.refresh();
+    updateQuickAddDropdowns();
     renderTableLedger();
     if (flowCanvas && flowCanvas.selectedNodeId) {
       inspectNode(flowCanvas.selectedNodeId);
@@ -42,6 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateKPIs();
     if (flowCanvas) flowCanvas.render();
     if (timelineController) timelineController.refresh();
+    updateQuickAddDropdowns();
     renderTableLedger();
   });
 
@@ -186,6 +189,14 @@ function initInspector() {
   if (btnAdd) {
     btnAdd.addEventListener('click', () => {
       renderPanelCreateNodeForm();
+    });
+  }
+
+  const btnClose = document.getElementById('btnCloseInspector');
+  if (btnClose) {
+    btnClose.addEventListener('click', () => {
+      isInspectorOpen = false;
+      updateViewLayout();
     });
   }
 }
@@ -496,6 +507,36 @@ function attachInlineNoteEditors(container, refreshNodeId) {
 }
 
 function inspectTotalColumn(colType) {
+  const nodeClickAction = document.getElementById('nodeClickActionSelect')?.value || 'both';
+
+  if (nodeClickAction === 'both' || nodeClickAction === 'table') {
+    const rows = document.querySelectorAll('#ledgerTableBody tr[data-tx-id]');
+    let firstMatch = null;
+    rows.forEach(r => {
+      const type = r.getAttribute('data-type');
+      let matches = false;
+      if (colType === 'income') matches = (type === 'income');
+      else if (colType === 'expense') matches = (type === 'expense');
+      else if (colType === 'pocket') matches = (type === 'transfer' || type === 'income' || type === 'expense');
+      if (matches) {
+        r.classList.add('row-timeline-highlight');
+        if (!firstMatch) firstMatch = r;
+      } else {
+        r.classList.remove('row-timeline-highlight');
+      }
+    });
+    if (firstMatch && (currentView === 'table' || currentView === 'split')) {
+      firstMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+
+  if (nodeClickAction === 'table') return;
+
+  if (!isInspectorOpen) {
+    isInspectorOpen = true;
+    updateViewLayout();
+  }
+
   const body = document.getElementById('inspectorBody');
   if (!body) return;
 
@@ -764,6 +805,33 @@ function inspectNode(nodeId) {
   if (nodeId === 'total-expense') {
     inspectTotalColumn('expense');
     return;
+  }
+
+  const nodeClickAction = document.getElementById('nodeClickActionSelect')?.value || 'both';
+
+  if (nodeClickAction === 'both' || nodeClickAction === 'table') {
+    const rows = document.querySelectorAll('#ledgerTableBody tr[data-tx-id]');
+    let firstMatch = null;
+    rows.forEach(r => {
+      const fromId = r.getAttribute('data-from-id');
+      const toId = r.getAttribute('data-to-id');
+      if (fromId === nodeId || toId === nodeId) {
+        r.classList.add('row-timeline-highlight');
+        if (!firstMatch) firstMatch = r;
+      } else {
+        r.classList.remove('row-timeline-highlight');
+      }
+    });
+    if (firstMatch && (currentView === 'table' || currentView === 'split')) {
+      firstMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+
+  if (nodeClickAction === 'table') return;
+
+  if (!isInspectorOpen) {
+    isInspectorOpen = true;
+    updateViewLayout();
   }
 
   // Search node among pockets, incomes, expenses
@@ -1263,7 +1331,136 @@ function inspectNode(nodeId) {
   attachInlineNoteEditors(body, nodeId);
 }
 
-// 6. Precision Table Ledger (Brief v04 Sec 4.2)
+// 6. Precision Table Ledger (Brief v05: Timeline Rail + Inline Quick Add)
+function updateQuickAddDropdowns() {
+  const typeEl = document.getElementById('quickAddType');
+  const srcEl = document.getElementById('quickAddSource');
+  const tgtEl = document.getElementById('quickAddTarget');
+  const pktLabelEl = document.getElementById('quickAddPocketLabel');
+  if (!typeEl || !srcEl || !tgtEl) return;
+
+  const type = typeEl.value;
+  srcEl.innerHTML = '';
+  tgtEl.innerHTML = '';
+
+  const pockets = store.state.pockets || [];
+  const incomes = store.state.incomeSources || [];
+  const expenses = store.state.expenseCategories || [];
+
+  if (type === 'expense') {
+    pockets.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = `${p.label} (${i18n.formatCurrency(p.balance)})`;
+      srcEl.appendChild(opt);
+    });
+    expenses.forEach(e => {
+      const opt = document.createElement('option');
+      opt.value = e.id;
+      opt.textContent = e.label;
+      tgtEl.appendChild(opt);
+    });
+    if (pktLabelEl) {
+      const selectedPocket = pockets.find(p => p.id === srcEl.value);
+      pktLabelEl.textContent = selectedPocket ? selectedPocket.label : '-';
+    }
+  } else if (type === 'income') {
+    incomes.forEach(i => {
+      const opt = document.createElement('option');
+      opt.value = i.id;
+      opt.textContent = i.label;
+      srcEl.appendChild(opt);
+    });
+    pockets.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = `${p.label} (${i18n.formatCurrency(p.balance)})`;
+      tgtEl.appendChild(opt);
+    });
+    if (pktLabelEl) {
+      const selectedPocket = pockets.find(p => p.id === tgtEl.value);
+      pktLabelEl.textContent = selectedPocket ? selectedPocket.label : '-';
+    }
+  } else if (type === 'transfer') {
+    pockets.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = `${p.label} (${i18n.formatCurrency(p.balance)})`;
+      srcEl.appendChild(opt);
+    });
+    pockets.forEach((p, idx) => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = `${p.label} (${i18n.formatCurrency(p.balance)})`;
+      if (idx === 1 || (idx === 0 && pockets.length === 1)) opt.selected = true;
+      tgtEl.appendChild(opt);
+    });
+    if (pktLabelEl) {
+      pktLabelEl.textContent = '⇄ Antar Kantong';
+    }
+  }
+}
+
+function submitQuickAddTransaction() {
+  const dateEl = document.getElementById('quickAddDate');
+  const typeEl = document.getElementById('quickAddType');
+  const amtEl = document.getElementById('quickAddAmount');
+  const srcEl = document.getElementById('quickAddSource');
+  const tgtEl = document.getElementById('quickAddTarget');
+  const adminFeeEl = document.getElementById('quickAddAdminFee');
+  const shipFeeEl = document.getElementById('quickAddShippingFee');
+  const noteEl = document.getElementById('quickAddNote');
+
+  if (!amtEl || !srcEl || !tgtEl) return;
+
+  const amount = parseFloat(amtEl.value);
+  if (!amount || amount <= 0) {
+    showToast('Masukkan jumlah nominal yang valid!');
+    amtEl.focus();
+    return;
+  }
+
+  const type = typeEl.value;
+  const date = dateEl?.value || new Date().toISOString().split('T')[0];
+  const fromId = srcEl.value;
+  const toId = tgtEl.value;
+  const adminFee = parseFloat(adminFeeEl?.value) || 0;
+  const shippingFee = parseFloat(shipFeeEl?.value) || 0;
+  const note = (noteEl?.value || '').trim();
+
+  if (type === 'transfer' && fromId === toId) {
+    showToast('Sumber dan tujuan transfer tidak boleh sama!');
+    return;
+  }
+
+  try {
+    store.addTransaction({
+      date,
+      type,
+      amount,
+      fromId,
+      toId,
+      adminFee,
+      shippingFee,
+      note: note || (type === 'transfer' ? 'Transfer Cepat' : (type === 'income' ? 'Pemasukan Cepat' : 'Pengeluaran Cepat'))
+    });
+
+    amtEl.value = '';
+    if (noteEl) noteEl.value = '';
+    if (adminFeeEl) adminFeeEl.value = '0';
+    if (shipFeeEl) shipFeeEl.value = '0';
+    const popover = document.getElementById('quickAddFeesPopover');
+    if (popover) popover.style.display = 'none';
+
+    showToast('Transaksi berhasil dicatat!');
+    updateQuickAddDropdowns();
+    renderTableLedger();
+  } catch (err) {
+    console.error('Quick add transaction error:', err);
+    showToast('Gagal mencatat transaksi: ' + err.message);
+  }
+}
+
 function initTableLedger() {
   const searchInput = document.getElementById('ledgerSearchInput');
   if (searchInput) {
@@ -1283,6 +1480,106 @@ function initTableLedger() {
     });
   });
 
+  // Setup Quick Add Row inputs
+  const quickDateEl = document.getElementById('quickAddDate');
+  if (quickDateEl && !quickDateEl.value) {
+    quickDateEl.value = new Date().toISOString().split('T')[0];
+  }
+
+  const quickTypeEl = document.getElementById('quickAddType');
+  if (quickTypeEl) {
+    quickTypeEl.addEventListener('change', () => {
+      updateQuickAddDropdowns();
+    });
+  }
+
+  const quickSrcEl = document.getElementById('quickAddSource');
+  const quickTgtEl = document.getElementById('quickAddTarget');
+  const pktLabelEl = document.getElementById('quickAddPocketLabel');
+  if (quickSrcEl) {
+    quickSrcEl.addEventListener('change', () => {
+      if (quickTypeEl?.value === 'expense' && pktLabelEl) {
+        const pocket = store.state.pockets.find(p => p.id === quickSrcEl.value);
+        pktLabelEl.textContent = pocket ? pocket.label : '-';
+      }
+    });
+  }
+  if (quickTgtEl) {
+    quickTgtEl.addEventListener('change', () => {
+      if (quickTypeEl?.value === 'income' && pktLabelEl) {
+        const pocket = store.state.pockets.find(p => p.id === quickTgtEl.value);
+        pktLabelEl.textContent = pocket ? pocket.label : '-';
+      }
+    });
+  }
+
+  const btnFeesToggle = document.getElementById('btnQuickAddFeesToggle');
+  const feesPopover = document.getElementById('quickAddFeesPopover');
+  if (btnFeesToggle && feesPopover) {
+    btnFeesToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      feesPopover.style.display = feesPopover.style.display === 'block' ? 'none' : 'block';
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!feesPopover.contains(e.target) && e.target !== btnFeesToggle) {
+        feesPopover.style.display = 'none';
+      }
+    });
+  }
+
+  const btnQuickSubmit = document.getElementById('btnQuickAddSubmit');
+  if (btnQuickSubmit) {
+    btnQuickSubmit.addEventListener('click', () => {
+      submitQuickAddTransaction();
+    });
+  }
+
+  const quickAmtInput = document.getElementById('quickAddAmount');
+  if (quickAmtInput) {
+    quickAmtInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        submitQuickAddTransaction();
+      }
+    });
+  }
+
+  const quickNoteInput = document.getElementById('quickAddNote');
+  if (quickNoteInput) {
+    quickNoteInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        submitQuickAddTransaction();
+      }
+    });
+  }
+
+  // Real-time synchronization with Timeline playback and scrubbing
+  window.addEventListener('timelineFrameChanged', (e) => {
+    const { frameIndex, tx, isLive } = e.detail;
+    const tbody = document.getElementById('ledgerTableBody');
+    if (!tbody) return;
+
+    const rows = tbody.querySelectorAll('tr[data-tx-id]');
+    rows.forEach(r => {
+      const isThisTx = tx && r.getAttribute('data-tx-id') === tx.id;
+      r.classList.toggle('row-active-frame', isThisTx);
+      const dot = r.querySelector('.timeline-rail-dot');
+      if (dot) {
+        dot.classList.toggle('active', isThisTx);
+      }
+    });
+
+    if (tx && (currentView === 'table' || currentView === 'split')) {
+      const activeRow = tbody.querySelector(`tr[data-tx-id="${tx.id}"]`);
+      if (activeRow && timelineController && timelineController.isPlaying) {
+        activeRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+  });
+
+  updateQuickAddDropdowns();
   renderTableLedger();
 }
 
@@ -1307,13 +1604,13 @@ function renderTableLedger() {
     );
   }
 
-  // Sort chronological descending
+  // Sort chronological descending (Latest on top, Oldest on bottom)
   list.sort((a, b) => new Date(b.date) - new Date(a.date));
 
   if (list.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="8" style="text-align: center; padding: 30px; color: var(--text-muted);">
+        <td colspan="10" style="text-align: center; padding: 30px; color: var(--text-muted);">
           ${i18n.t('no_transactions')}
         </td>
       </tr>
@@ -1324,20 +1621,50 @@ function renderTableLedger() {
   // Calculate Running Balance per Pocket or Global
   let runningBalance = store.getTotalBalance();
 
-  list.forEach(tx => {
+  const activeTxId = (timelineController && timelineController.transactions && timelineController.currentFrame >= 0)
+    ? timelineController.transactions[timelineController.currentFrame]?.id
+    : null;
+
+  list.forEach((tx, idx) => {
+    const isFirst = idx === 0;
+    const isLast = idx === list.length - 1;
+    const isLatest = isFirst;
+    const isOldest = isLast;
+    const isFrameActive = activeTxId === tx.id;
+
     const isInc = tx.type === 'income';
     const isExp = tx.type === 'expense';
     const changeClass = isInc ? 'delta-income' : (isExp ? 'delta-expense' : 'delta-transfer');
     const changeSign = isInc ? '+' : (isExp ? '-' : '⇄ ');
     const assignedPocket = tx.type === 'expense' ? tx.fromLabel : tx.toLabel;
 
+    const railTitle = isLatest ? `● Keyframe Terbaru (Latest)` : (isOldest ? `● Keyframe Awal (Oldest)` : `● Frame Transaksi`);
+
     const tr = document.createElement('tr');
+    tr.setAttribute('data-tx-id', tx.id);
+    tr.setAttribute('data-from-id', tx.fromId);
+    tr.setAttribute('data-to-id', tx.toId);
+    tr.setAttribute('data-type', tx.type);
+    if (isFrameActive) tr.classList.add('row-active-frame');
+
     tr.innerHTML = `
+      <td class="timeline-rail-cell">
+        <div class="timeline-rail-wrapper ${isFirst ? 'is-first' : ''} ${isLast ? 'is-last' : ''}">
+          <div class="timeline-rail-line-top"></div>
+          <div class="timeline-rail-dot ${isFrameActive ? 'active' : ''}" data-tx-id="${tx.id}" title="${railTitle}">
+            <div class="timeline-rail-dot-core"></div>
+          </div>
+          <div class="timeline-rail-line-bottom"></div>
+        </div>
+      </td>
       <td style="font-weight: 600; white-space: nowrap;">${i18n.formatDate(tx.date)}</td>
       <td>
         <span class="badge-tag tag-${tx.type}">${tx.type.toUpperCase()}</span>
       </td>
-      <td class="${changeClass}">${changeSign}${i18n.formatCurrency(tx.amount)}</td>
+      <td class="${changeClass}">
+        ${changeSign}${i18n.formatCurrency(tx.amount)}
+        ${(tx.adminFee || tx.shippingFee) ? `<span style="font-size: 10px; color: #94a3b8; display: block; font-weight: 400;">(${tx.adminFee ? 'Adm: ' + i18n.formatCurrency(tx.adminFee) : ''}${tx.adminFee && tx.shippingFee ? ', ' : ''}${tx.shippingFee ? 'Ongkir: ' + i18n.formatCurrency(tx.shippingFee) : ''})</span>` : ''}
+      </td>
       <td style="font-weight: 700; font-family: 'JetBrains Mono', monospace; color: #93c5fd;">
         ${i18n.formatCurrency(runningBalance)}
       </td>
@@ -1354,6 +1681,29 @@ function renderTableLedger() {
       </td>
     `;
 
+    // Click on timeline rail dot jumps timeline scrubber
+    const railDot = tr.querySelector('.timeline-rail-dot');
+    if (railDot) {
+      railDot.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (timelineController && timelineController.transactions) {
+          const tIdx = timelineController.transactions.findIndex(t => t.id === tx.id);
+          if (tIdx >= 0) {
+            timelineController.jumpTo(tIdx, true);
+          }
+        }
+      });
+    }
+
+    // Click on row inspects the node
+    tr.addEventListener('click', (e) => {
+      if (e.target.closest('.btn-del-tx') || e.target.closest('.timeline-rail-dot')) return;
+      const targetNodeId = tx.type === 'expense' ? tx.toId : (tx.type === 'income' ? tx.fromId : tx.toId);
+      if (targetNodeId) {
+        inspectNode(targetNodeId);
+      }
+    });
+
     // Hook delete
     tr.querySelector('.btn-del-tx').addEventListener('click', (e) => {
       e.stopPropagation();
@@ -1367,38 +1717,49 @@ function renderTableLedger() {
   });
 }
 
-// 7. View Tabs & Mode Switchers
-function initViewTabs() {
-  const tabs = document.querySelectorAll('[data-view-tab]');
+// 7. View Tabs & Responsive Workspace Layout (Brief v05)
+function updateViewLayout() {
+  const container = document.querySelector('.workspace-container');
   const canvasWrapper = document.getElementById('canvasWrapper');
   const inspectorSidebar = document.getElementById('inspectorSidebar');
   const tableViewContainer = document.getElementById('tableViewContainer');
+
+  if (!container) return;
+
+  if (canvasWrapper) canvasWrapper.style.display = '';
+  if (inspectorSidebar) inspectorSidebar.style.display = '';
+  if (tableViewContainer) tableViewContainer.style.display = '';
+
+  container.classList.remove('mode-flow', 'mode-table', 'mode-split', 'inspector-hidden');
+
+  if (currentView === 'flow') {
+    container.classList.add('mode-flow');
+    if (!isInspectorOpen) container.classList.add('inspector-hidden');
+    if (flowCanvas) flowCanvas.render();
+  } else if (currentView === 'table') {
+    container.classList.add('mode-table');
+    renderTableLedger();
+  } else if (currentView === 'split') {
+    container.classList.add('mode-split');
+    if (!isInspectorOpen) container.classList.add('inspector-hidden');
+    if (flowCanvas) flowCanvas.render();
+    renderTableLedger();
+  }
+}
+
+function initViewTabs() {
+  const tabs = document.querySelectorAll('[data-view-tab]');
 
   tabs.forEach(tab => {
     tab.addEventListener('click', () => {
       tabs.forEach(t => t.classList.remove('active'));
       tab.classList.add('active');
       currentView = tab.getAttribute('data-view-tab');
-
-      if (currentView === 'flow') {
-        canvasWrapper.style.display = 'flex';
-        inspectorSidebar.style.display = 'flex';
-        tableViewContainer.classList.remove('active');
-        if (flowCanvas) flowCanvas.render();
-      } else if (currentView === 'table') {
-        canvasWrapper.style.display = 'none';
-        inspectorSidebar.style.display = 'none';
-        tableViewContainer.classList.add('active');
-        renderTableLedger();
-      } else if (currentView === 'split') {
-        canvasWrapper.style.display = 'flex';
-        inspectorSidebar.style.display = 'none';
-        tableViewContainer.classList.add('active');
-        if (flowCanvas) flowCanvas.render();
-        renderTableLedger();
-      }
+      updateViewLayout();
     });
   });
+
+  updateViewLayout();
 }
 
 function initModeToggle() {

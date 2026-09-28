@@ -469,6 +469,16 @@ export class TimelineController {
         }
       }
     }
+
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(new CustomEvent('timelineFrameChanged', {
+        detail: {
+          frameIndex: this.currentFrame,
+          tx: this.transactions[this.currentFrame] || null,
+          isLive: this.isLive
+        }
+      }));
+    }
   }
 
   syncFlowCanvas() {
