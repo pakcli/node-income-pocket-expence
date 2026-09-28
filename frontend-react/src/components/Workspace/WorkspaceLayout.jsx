@@ -104,9 +104,11 @@ export function WorkspaceLayout({
       <div
         style={{
           display: currentView === 'table' ? 'none' : 'flex',
-          flex: widths.canvas ? 'none' : undefined,
+          flex: widths.canvas ? 'none' : 1,
           width: widths.canvas || undefined,
-          minWidth: 240
+          minWidth: 240,
+          height: '100%',
+          overflow: 'hidden'
         }}
       >
         <FlowCanvasView
@@ -142,9 +144,12 @@ export function WorkspaceLayout({
       {isInspectorOpen && (
         <div
           style={{
-            flex: widths.inspector ? 'none' : undefined,
-            width: widths.inspector || undefined,
-            minWidth: 200
+            flex: widths.inspector ? 'none' : '0 0 320px',
+            width: widths.inspector || '320px',
+            minWidth: 200,
+            height: '100%',
+            overflow: 'hidden',
+            display: 'flex'
           }}
         >
           <NodeInspector
@@ -170,8 +175,11 @@ export function WorkspaceLayout({
       <div
         style={{
           display: currentView === 'flow' ? 'none' : 'flex',
-          flex: 1,
-          minWidth: 240
+          flex: widths.table ? 'none' : 1,
+          width: widths.table || undefined,
+          minWidth: 280,
+          height: '100%',
+          overflow: 'hidden'
         }}
       >
         <TableLedger
