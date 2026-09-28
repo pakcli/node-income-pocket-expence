@@ -13,13 +13,23 @@ const exportRoutes = require('./routes/export');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const FRONTEND_DIR = path.join(__dirname, '../../frontend');
+const REACT_DIST_DIR = path.join(__dirname, '../../frontend-react/dist');
+const fs = require('fs');
 
 // Global Middlewares
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve Static Frontend Assets with no-cache headers for instant local reload
+// Serve React production build at /react if built
+if (fs.existsSync(REACT_DIST_DIR)) {
+  app.use('/react', express.static(REACT_DIST_DIR));
+  app.use('/react', (req, res) => {
+    res.sendFile(path.join(REACT_DIST_DIR, 'index.html'));
+  });
+}
+
+// Serve Static Vanilla Frontend Assets with no-cache headers for instant local reload
 app.use(express.static(FRONTEND_DIR, {
   etag: false,
   lastModified: false,

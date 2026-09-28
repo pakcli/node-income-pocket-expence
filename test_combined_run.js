@@ -44,6 +44,14 @@ async function runTests() {
     const resJS = await request('/js/app.js');
     console.log(`[PASS] GET /js/app.js -> HTTP ${resJS.status} (${resJS.body.length} bytes)`);
 
+    // 1b. Test React Frontend Delivery
+    console.log('\n--- Test 1b: React Frontend Delivery ---');
+    const resReact = await request('/react/');
+    console.log(`[PASS] GET /react/ -> HTTP ${resReact.status} (${resReact.body.length} bytes)`);
+    if (!resReact.body.includes('React v05')) {
+      throw new Error('React frontend did not return expected title.');
+    }
+
     // 2. Test API Health Check
     console.log('\n--- Test 2: API Health Check ---');
     const resHealth = await request('/api/health');

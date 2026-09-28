@@ -7,7 +7,10 @@
     "start": "node backend/src/server.js",
     "dev": "node backend/src/server.js",
     "test:auth": "cd backend && node test_auth.js",
-    "frontend:static": "node frontend/serve.js"
+    "frontend:static": "node frontend/serve.js",
+    "react:dev": "npm --prefix frontend-react run dev",
+    "react:build": "npm --prefix frontend-react run build",
+    "react:preview": "npm --prefix frontend-react run preview"
   },
   "keywords": [
     "personal-finance",
