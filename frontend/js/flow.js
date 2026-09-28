@@ -822,6 +822,8 @@ export class FlowCanvas {
   renderEdges() {
     this.edgesGroup.innerHTML = '';
 
+    const activeTimelineTx = this.highlightedTxId ? store.state.transactions.find(t => t.id === this.highlightedTxId) : null;
+
     // 1. Top Aggregate Macro Edges (Simple & Both Mode)
     if (this.mode === 'simple' || this.mode === 'both') {
       const fromCol1 = this.nodePositions['total-income'];
@@ -829,23 +831,60 @@ export class FlowCanvas {
       const toCol3 = this.nodePositions['total-expense'];
 
       if (fromCol1 && toCol2) {
-        const isHighlighted = this.selectedNodeId === 'total-income' || this.selectedNodeId === 'total-pocket';
-        this.drawBlenderBezierEdge(this.edgesGroup, fromCol1.outX, fromCol1.outY, toCol2.inX, toCol2.inY, '#10b981', 'url(#socket-arrow-green)', isHighlighted);
+        const isTxIncomeOrTransfer = activeTimelineTx && (activeTimelineTx.type === 'income' || activeTimelineTx.type === 'transfer');
+        const isHighlighted = this.selectedNodeId === 'total-income' || this.selectedNodeId === 'total-pocket' || (this.mode === 'simple' && isTxIncomeOrTransfer);
+        const totalIncome = store.state.incomeSources.reduce((sum, i) => sum + (i.total || 0), 0);
+        const isTimelineActive = Boolean(this.mode === 'simple' && isTxIncomeOrTransfer);
+        const color = isTimelineActive ? '#fbbf24' : '#10b981';
+        this.drawBlenderBezierEdge(
+          this.edgesGroup,
+          fromCol1.outX,
+          fromCol1.outY,
+          toCol2.inX,
+          toCol2.inY,
+          color,
+          'url(#socket-arrow-green)',
+          isHighlighted,
+          isTimelineActive,
+          {
+            amount: (this.mode === 'simple' && activeTimelineTx && isTxIncomeOrTransfer) ? activeTimelineTx.amount : totalIncome,
+            type: 'income',
+            edgeId: 'macro-inc'
+          }
+        );
       }
 
       if (toCol2 && toCol3) {
-        const isHighlighted = this.selectedNodeId === 'total-pocket' || this.selectedNodeId === 'total-expense';
-        this.drawBlenderBezierEdge(this.edgesGroup, toCol2.outX, toCol2.outY, toCol3.inX, toCol3.inY, '#f87171', 'url(#socket-arrow-red)', isHighlighted);
+        const isTxExpense = activeTimelineTx && activeTimelineTx.type === 'expense';
+        const isHighlighted = this.selectedNodeId === 'total-pocket' || this.selectedNodeId === 'total-expense' || (this.mode === 'simple' && isTxExpense);
+        const totalExpense = store.state.expenseCategories.reduce((sum, e) => sum + (e.total || 0), 0);
+        const isTimelineActive = Boolean(this.mode === 'simple' && isTxExpense);
+        const color = isTimelineActive ? '#fbbf24' : '#f87171';
+        this.drawBlenderBezierEdge(
+          this.edgesGroup,
+          toCol2.outX,
+          toCol2.outY,
+          toCol3.inX,
+          toCol3.inY,
+          color,
+          'url(#socket-arrow-red)',
+          isHighlighted,
+          isTimelineActive,
+          {
+            amount: (this.mode === 'simple' && activeTimelineTx && isTxExpense) ? activeTimelineTx.amount : totalExpense,
+            type: 'expense',
+            edgeId: 'macro-exp'
+          }
+        );
       }
     }
 
     // 2. Individual Transaction Edges (IRL & Both Mode)
     if (this.mode === 'irl' || this.mode === 'both') {
       const edgeDrawn = new Set();
-      const activeTimelineTx = this.highlightedTxId ? store.state.transactions.find(t => t.id === this.highlightedTxId) : null;
 
       store.state.transactions.forEach(tx => {
-        const isTimelineActive = activeTimelineTx && activeTimelineTx.id === tx.id;
+        const isTimelineActive = Boolean(activeTimelineTx && activeTimelineTx.id === tx.id);
         const edgeKey = `${tx.fromId}->${tx.toId}`;
         if (!isTimelineActive && edgeDrawn.has(edgeKey)) return;
         if (!isTimelineActive) edgeDrawn.add(edgeKey);
@@ -863,7 +902,22 @@ export class FlowCanvas {
             startY = fromSocket.transferOutY || fromSocket.outY;
             endX = toSocket.inX;
             endY = toSocket.inY;
-            this.drawBlenderArcEdge(this.edgesGroup, startX, startY, endX, endY, isTimelineActive ? '#fbbf24' : '#c084fc', 'url(#socket-arrow-purple)', isHighlighted, isTimelineActive);
+            this.drawBlenderArcEdge(
+              this.edgesGroup,
+              startX,
+              startY,
+              endX,
+              endY,
+              isTimelineActive ? '#fbbf24' : '#c084fc',
+              'url(#socket-arrow-purple)',
+              isHighlighted,
+              isTimelineActive,
+              {
+                amount: tx.amount,
+                type: tx.type,
+                edgeId: `tx-${tx.id}`
+              }
+            );
           } else {
             startX = fromSocket.outX;
             startY = fromSocket.outY;
@@ -871,7 +925,22 @@ export class FlowCanvas {
             endY = toSocket.inY;
             const color = isTimelineActive ? '#fbbf24' : (tx.type === 'income' ? '#10b981' : '#f87171');
             const marker = tx.type === 'income' ? 'url(#socket-arrow-green)' : 'url(#socket-arrow-red)';
-            this.drawBlenderBezierEdge(this.edgesGroup, startX, startY, endX, endY, color, marker, isHighlighted, isTimelineActive);
+            this.drawBlenderBezierEdge(
+              this.edgesGroup,
+              startX,
+              startY,
+              endX,
+              endY,
+              color,
+              marker,
+              isHighlighted,
+              isTimelineActive,
+              {
+                amount: tx.amount,
+                type: tx.type,
+                edgeId: `tx-${tx.id}`
+              }
+            );
           }
         }
       });
@@ -1479,7 +1548,7 @@ export class FlowCanvas {
     nodeGroup.addEventListener('pointerdown', onPointerDown);
   }
 
-  drawBlenderBezierEdge(parent, x1, y1, x2, y2, color, marker, isHighlighted, isTimelineActive = false) {
+  drawBlenderBezierEdge(parent, x1, y1, x2, y2, color, marker, isHighlighted, isTimelineActive = false, txInfo = null) {
     const dx = Math.abs(x2 - x1) * 0.55;
     const cp1x = x1 + dx;
     const cp1y = y1;
@@ -1493,6 +1562,10 @@ export class FlowCanvas {
     path.setAttribute('stroke', color);
     path.setAttribute('stroke-width', isTimelineActive ? '4' : (isHighlighted ? '3.5' : '2.2'));
     path.setAttribute('stroke-opacity', (isTimelineActive || isHighlighted) ? '1' : '0.65');
+
+    const pathId = `flow-edge-${txInfo?.edgeId || Math.random().toString(36).substring(2, 9)}`;
+    path.setAttribute('id', pathId);
+
     if (isTimelineActive) {
       path.classList.add('edge-timeline-active');
     } else if (isHighlighted) {
@@ -1501,9 +1574,14 @@ export class FlowCanvas {
     }
     path.setAttribute('marker-end', marker);
     parent.appendChild(path);
+
+    // Draw the cash animation value flying from left to right ($999 >>>>>>)
+    if (txInfo && txInfo.amount > 0) {
+      this.drawCashFlowCapsule(parent, pathId, txInfo, isTimelineActive, isHighlighted);
+    }
   }
 
-  drawBlenderArcEdge(parent, x1, y1, x2, y2, color, marker, isHighlighted, isTimelineActive = false) {
+  drawBlenderArcEdge(parent, x1, y1, x2, y2, color, marker, isHighlighted, isTimelineActive = false, txInfo = null) {
     const offset = 48;
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     const midX = Math.max(x1, x2) + offset;
@@ -1514,6 +1592,10 @@ export class FlowCanvas {
     path.setAttribute('stroke', color);
     path.setAttribute('stroke-width', isTimelineActive ? '4' : (isHighlighted ? '3' : '2'));
     path.setAttribute('stroke-opacity', (isTimelineActive || isHighlighted) ? '1' : '0.7');
+
+    const pathId = `flow-edge-${txInfo?.edgeId || Math.random().toString(36).substring(2, 9)}`;
+    path.setAttribute('id', pathId);
+
     if (isTimelineActive) {
       path.classList.add('edge-timeline-active');
     } else {
@@ -1521,5 +1603,111 @@ export class FlowCanvas {
     }
     path.setAttribute('marker-end', marker);
     parent.appendChild(path);
+
+    // Draw the cash animation value flying along the arc ($999 >>>>>>)
+    if (txInfo && txInfo.amount > 0) {
+      this.drawCashFlowCapsule(parent, pathId, txInfo, isTimelineActive, isHighlighted);
+    }
+  }
+
+  // Draw Flying Cash Flow Capsule along Edge Curve ($999 >>>>>> in Rupiah)
+  drawCashFlowCapsule(parent, pathId, txInfo, isTimelineActive, isHighlighted) {
+    if (!txInfo || !txInfo.amount) return;
+
+    const formattedVal = i18n.formatCurrency(txInfo.amount);
+    const sign = txInfo.type === 'income' ? '+' : (txInfo.type === 'expense' ? '-' : '');
+    const displayText = `${sign}${formattedVal} >>>>>>`;
+
+    const textLength = displayText.length;
+    const pillWidth = Math.max(88, Math.round(textLength * 6.6 + 14));
+    const pillHeight = 20;
+
+    let strokeColor = '#38bdf8';
+    let textColor = '#ffffff';
+    let arrowColor = '#38bdf8';
+
+    if (txInfo.type === 'income') {
+      strokeColor = '#10b981';
+      textColor = '#6ee7b7';
+      arrowColor = '#34d399';
+    } else if (txInfo.type === 'expense') {
+      strokeColor = '#f87171';
+      textColor = '#fca5a5';
+      arrowColor = '#f87171';
+    } else if (txInfo.type === 'transfer') {
+      strokeColor = '#c084fc';
+      textColor = '#e9d5ff';
+      arrowColor = '#c084fc';
+    }
+
+    if (isTimelineActive) {
+      strokeColor = '#fbbf24';
+      textColor = '#fef08a';
+      arrowColor = '#fbbf24';
+    }
+
+    const animGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    animGroup.setAttribute('class', `cash-flow-capsule ${isTimelineActive ? 'cash-flow-active' : ''}`);
+    animGroup.style.pointerEvents = 'none';
+
+    // SVG animateMotion to glide along the exact path curve from left to right
+    const animMotion = document.createElementNS('http://www.w3.org/2000/svg', 'animateMotion');
+    const animDuration = isTimelineActive ? '0.9s' : (isHighlighted ? '1.4s' : '2.4s');
+    animMotion.setAttribute('dur', animDuration);
+    animMotion.setAttribute('repeatCount', 'indefinite');
+    animMotion.setAttribute('rotate', '0'); // Horizontal upright for crisp readability
+
+    if (!isTimelineActive) {
+      const delay = (Math.random() * 1.5).toFixed(2);
+      animMotion.setAttribute('begin', `${delay}s`);
+    }
+
+    const mpath = document.createElementNS('http://www.w3.org/2000/svg', 'mpath');
+    mpath.setAttribute('href', `#${pathId}`);
+    mpath.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', `#${pathId}`);
+    animMotion.appendChild(mpath);
+    animGroup.appendChild(animMotion);
+
+    // Pill background rect
+    const pillRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    pillRect.setAttribute('x', (-pillWidth / 2).toString());
+    pillRect.setAttribute('y', (-pillHeight / 2).toString());
+    pillRect.setAttribute('width', pillWidth.toString());
+    pillRect.setAttribute('height', pillHeight.toString());
+    pillRect.setAttribute('rx', (pillHeight / 2).toString());
+    pillRect.setAttribute('ry', (pillHeight / 2).toString());
+    pillRect.setAttribute('fill', isTimelineActive ? '#090d16' : 'rgba(15, 23, 42, 0.92)');
+    pillRect.setAttribute('stroke', strokeColor);
+    pillRect.setAttribute('stroke-width', isTimelineActive ? '2' : '1.2');
+    if (isTimelineActive) {
+      pillRect.style.filter = 'drop-shadow(0 0 10px rgba(251, 191, 36, 0.95))';
+    } else {
+      pillRect.style.filter = 'drop-shadow(0 2px 5px rgba(0, 0, 0, 0.7))';
+    }
+    animGroup.appendChild(pillRect);
+
+    // Value text + chevron arrows inside pill
+    const textEl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    textEl.setAttribute('x', '0');
+    textEl.setAttribute('y', '0');
+    textEl.setAttribute('text-anchor', 'middle');
+    textEl.setAttribute('dominant-baseline', 'central');
+    textEl.setAttribute('font-family', "'JetBrains Mono', monospace");
+    textEl.setAttribute('font-size', isTimelineActive ? '10' : '9.5');
+    textEl.setAttribute('font-weight', '800');
+
+    const spanVal = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+    spanVal.setAttribute('fill', textColor);
+    spanVal.textContent = `${sign}${formattedVal} `;
+    textEl.appendChild(spanVal);
+
+    const spanArr = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+    spanArr.setAttribute('fill', arrowColor);
+    spanArr.setAttribute('font-weight', '900');
+    spanArr.textContent = '>>>>>>';
+    textEl.appendChild(spanArr);
+
+    animGroup.appendChild(textEl);
+    parent.appendChild(animGroup);
   }
 }

@@ -1346,5 +1346,24 @@ body {
   animation: flowParticleDash 0.8s linear infinite !important;
 }
 
+/* Animated Cash Flow Value Capsules ($999 >>>>>>) */
+.cash-flow-capsule {
+  pointer-events: none;
+  user-select: none;
+  transition: opacity 0.2s ease;
+}
+
+.cash-flow-capsule text {
+  letter-spacing: 0.3px;
+}
+
+.cash-flow-active rect {
+  filter: drop-shadow(0 0 10px rgba(251, 191, 36, 0.95)) !important;
+}
+
+.cash-flow-active text {
+  font-weight: 900 !important;
+}
+
 
 
