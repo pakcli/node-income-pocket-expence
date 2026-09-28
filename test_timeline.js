@@ -19,10 +19,17 @@ global.document = {
     className: '',
     style: {},
     title: '',
-    addEventListener: () => {}
+    addEventListener: () => {},
+    setAttribute: () => {},
+    classList: {
+      add: () => {},
+      remove: () => {},
+      toggle: () => {}
+    }
   }),
   getElementById: (id) => ({
     id,
+    style: {},
     classList: {
       add: () => {},
       remove: () => {},
@@ -54,9 +61,10 @@ async function testTimeline() {
   // Mock flowCanvas
   let highlightedTx = null;
   const mockFlowCanvas = {
-    highlightTimelineTx: (id, isPlaying) => {
+    highlightTimelineTx: (id, isPlaying, speed, ratio) => {
       highlightedTx = id;
     },
+    setCashProgress: () => {},
     pauseCashAnimation: () => {},
     resumeCashAnimation: () => {}
   };

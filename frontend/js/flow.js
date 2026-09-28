@@ -55,10 +55,11 @@ export class FlowCanvas {
     }
   }
 
-  highlightTimelineTx(txId, isPlaying = false, speed = 1) {
+  highlightTimelineTx(txId, isPlaying = false, speed = 1, currentRatio = 0) {
     this.highlightedTxId = txId;
     this.isTimelinePlaying = Boolean(isPlaying);
     this.timelineSpeed = speed || 1;
+    this.timelineCurrentRatio = currentRatio;
     this.renderEdges();
 
     // Visually toggle active class on nodes corresponding to active timeline transaction
@@ -97,21 +98,24 @@ export class FlowCanvas {
         if (macroEl) macroEl.classList.add('node-timeline-active');
       });
     }
+
+    if (typeof currentRatio === 'number') {
+      this.setCashProgress(currentRatio);
+    }
+  }
+
+  setCashProgress(ratio) {
+    this.timelineCurrentRatio = ratio;
+    if (this.currentCashAnim && this.currentCashAnim.getPoint && this.currentCashAnim.animGroup) {
+      const p = Math.max(0, Math.min(1, ratio));
+      this.currentCashAnim.progress = p;
+      const pt = this.currentCashAnim.getPoint(p);
+      this.currentCashAnim.animGroup.setAttribute('transform', `translate(${pt.x}, ${pt.y})`);
+    }
   }
 
   pauseCashAnimation() {
     this.isTimelinePlaying = false;
-    if (this.currentCashAnim && !this.currentCashAnim.isPaused) {
-      this.currentCashAnim.isPaused = true;
-      if (this.currentCashAnim.rafId) {
-        cancelAnimationFrame(this.currentCashAnim.rafId);
-        this.currentCashAnim.rafId = null;
-      }
-      if (this.currentCashAnim.getPoint && this.currentCashAnim.animGroup) {
-        const pt = this.currentCashAnim.getPoint(this.currentCashAnim.progress);
-        this.currentCashAnim.animGroup.setAttribute('transform', `translate(${pt.x}, ${pt.y})`);
-      }
-    }
     const activeEdges = this.edgesGroup?.querySelectorAll('.edge-timeline-active');
     activeEdges?.forEach(e => e.classList.add('edge-timeline-paused'));
   }
@@ -120,31 +124,6 @@ export class FlowCanvas {
     this.isTimelinePlaying = true;
     const activeEdges = this.edgesGroup?.querySelectorAll('.edge-timeline-paused');
     activeEdges?.forEach(e => e.classList.remove('edge-timeline-paused'));
-
-    if (this.currentCashAnim && this.currentCashAnim.isPaused && this.currentCashAnim.progress < 1) {
-      this.currentCashAnim.isPaused = false;
-      this.currentCashAnim.startTime = performance.now() - (this.currentCashAnim.progress * this.currentCashAnim.durationMs);
-
-      const animObj = this.currentCashAnim;
-      const step = (now) => {
-        if (animObj.isPaused) return;
-
-        const elapsed = now - animObj.startTime;
-        const p = Math.min(1, Math.max(0, elapsed / animObj.durationMs));
-        animObj.progress = p;
-
-        const pt = animObj.getPoint(p);
-        animObj.animGroup.setAttribute('transform', `translate(${pt.x}, ${pt.y})`);
-
-        if (p < 1) {
-          animObj.rafId = requestAnimationFrame(step);
-        } else {
-          const endPt = animObj.getPoint(1);
-          animObj.animGroup.setAttribute('transform', `translate(${endPt.x}, ${endPt.y})`);
-        }
-      };
-      animObj.rafId = requestAnimationFrame(step);
-    }
   }
 
   getSortedItems(items, columnKey) {
@@ -189,7 +168,7 @@ export class FlowCanvas {
     if (this.mode === 'simple') {
       height = Math.max(380, this.container.clientHeight || 380);
     } else if (this.mode === 'both') {
-      const neededHeight = 36 + totalNodeHeight + 16 + (maxColCount * (nodeHeight + spacing)) + 40;
+      const neededHeight = 16 + totalNodeHeight + 16 + 38 + (maxColCount * (nodeHeight + spacing)) + 50;
       height = Math.max(480, neededHeight, this.container.clientHeight || 480);
     } else { // 'irl'
       const neededHeight = maxColCount * (nodeHeight + spacing) + 80;
@@ -413,8 +392,9 @@ export class FlowCanvas {
     const col2X = width * 0.38;
     const col3X = Math.min(width - nodeWidth - 20, width * 0.72);
 
-    const topY = 30;
-    const detailStartY = topY + totalNodeHeight + 16;
+    const topY = 16;
+    const frameStartY = topY + totalNodeHeight + 16;
+    const detailStartY = frameStartY + 38;
 
     const calcY = (items, customSpacing = spacing) => {
       return items.map((_, i) => detailStartY + i * (nodeHeight + customSpacing));
@@ -438,32 +418,32 @@ export class FlowCanvas {
     const maxPktY = pktY.length > 0 ? (pktY[pktY.length - 1] + nodeHeight) : (detailStartY + 30);
     const maxExpY = expY.length > 0 ? (expY[expY.length - 1] + nodeHeight) : (detailStartY + 30);
 
-    // 1. Render Enclosing Blender Frames
+    // 1. Render Enclosing Blender Frames - OUTSIDE & BELOW THE TOP TOTAL NODES!
     this.renderBlenderFrame(this.framesGroup, {
-      title: 'INFLOW SOURCES (TOTAL + DETAIL)',
+      title: 'INFLOW SOURCES',
       accentColor: '#10b981',
       x: col1X - 12,
-      y: 12,
+      y: frameStartY,
       width: nodeWidth + 24,
-      height: maxIncY - 12 + 14
+      height: maxIncY - frameStartY + 14
     });
 
     this.renderBlenderFrame(this.framesGroup, {
-      title: 'WALLETS & TRANSFERS (TOTAL + DETAIL)',
+      title: 'WALLETS & TRANSFERS',
       accentColor: '#38bdf8',
       x: col2X - 12,
-      y: 12,
+      y: frameStartY,
       width: nodeWidth + 24,
-      height: maxPktY - 12 + 14
+      height: maxPktY - frameStartY + 14
     });
 
     this.renderBlenderFrame(this.framesGroup, {
-      title: 'EXPENSE OUTFLOWS (TOTAL + DETAIL)',
+      title: 'EXPENSE OUTFLOWS',
       accentColor: '#f87171',
       x: col3X - 12,
-      y: 12,
+      y: frameStartY,
       width: nodeWidth + 24,
-      height: maxExpY - 12 + 14
+      height: maxExpY - frameStartY + 14
     });
 
     // 2. Render Top Total Summary Nodes (Fixed at Top of Columns)
@@ -1761,44 +1741,16 @@ export class FlowCanvas {
         this.currentCashAnim = null;
       }
 
-      const durationMs = 1500 / (this.timelineSpeed || 1);
-      const startPt = getPoint(0);
+      const pInit = (typeof this.timelineCurrentRatio === 'number') ? this.timelineCurrentRatio : 0;
+      const startPt = getPoint(pInit);
       animGroup.setAttribute('transform', `translate(${startPt.x}, ${startPt.y})`);
 
       const animObj = {
-        rafId: null,
-        progress: 0,
-        isPaused: !this.isTimelinePlaying,
-        startTime: performance.now(),
-        durationMs,
+        progress: pInit,
         getPoint,
         animGroup
       };
       this.currentCashAnim = animObj;
-
-      if (this.isTimelinePlaying) {
-        const step = (now) => {
-          if (animObj.isPaused) return;
-
-          const elapsed = now - animObj.startTime;
-          const p = Math.min(1, Math.max(0, elapsed / animObj.durationMs));
-          animObj.progress = p;
-
-          const pt = animObj.getPoint(p);
-          animObj.animGroup.setAttribute('transform', `translate(${pt.x}, ${pt.y})`);
-
-          if (p < 1) {
-            animObj.rafId = requestAnimationFrame(step);
-          } else {
-            const endPt = animObj.getPoint(1);
-            animObj.animGroup.setAttribute('transform', `translate(${endPt.x}, ${endPt.y})`);
-          }
-        };
-        animObj.rafId = requestAnimationFrame(step);
-      } else {
-        // Paused on this frame: sit precisely at the start node output
-        animGroup.setAttribute('transform', `translate(${startPt.x}, ${startPt.y})`);
-      }
     } else if (isHighlighted && this.selectedNodeId) {
       // Node inspection: show stationary capsule at midpoint of connected wire
       const midPt = getPoint(0.5);

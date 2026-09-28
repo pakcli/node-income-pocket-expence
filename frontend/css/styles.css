@@ -1156,6 +1156,20 @@ body {
   align-items: center;
 }
 
+.timeline-progress-fill {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 4px;
+  background: linear-gradient(90deg, #38bdf8, #f59e0b);
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 2;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.5);
+  width: 0%;
+}
+
 .timeline-keyframes-track {
   position: absolute;
   left: 0;
@@ -1163,25 +1177,39 @@ body {
   top: 0;
   bottom: 0;
   pointer-events: none;
+  z-index: 10;
 }
 
 .timeline-keyframe-diamond {
   position: absolute;
   top: 50%;
   transform: translate(-50%, -50%) rotate(45deg);
-  width: 8px;
-  height: 8px;
-  background: #64748b;
-  border: 1px solid #0f172a;
+  width: 12px;
+  height: 12px;
+  background: #f59e0b;
+  border: 2px solid #0f172a;
   pointer-events: auto;
   cursor: pointer;
-  transition: all 0.15s ease;
-  z-index: 2;
+  transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  z-index: 11;
+}
+
+/* Generous 28px hit target for effortless diamond clicks */
+.timeline-keyframe-diamond::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  right: -8px;
+  bottom: -8px;
+  cursor: pointer;
 }
 
 .timeline-keyframe-diamond:hover {
-  transform: translate(-50%, -50%) rotate(45deg) scale(1.4);
+  transform: translate(-50%, -50%) rotate(45deg) scale(1.5);
   background: #38bdf8;
+  border-color: #ffffff;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.9);
 }
 
 .timeline-keyframe-diamond.passed {
@@ -1191,7 +1219,8 @@ body {
 .timeline-keyframe-diamond.active {
   transform: translate(-50%, -50%) rotate(45deg) scale(1.6);
   background: #f97316;
-  box-shadow: 0 0 8px #f97316;
+  border-color: #ffffff;
+  box-shadow: 0 0 12px #f97316;
 }
 
 .timeline-scrubber {
@@ -1204,28 +1233,28 @@ body {
   outline: none;
   cursor: pointer;
   position: relative;
-  z-index: 1;
+  z-index: 4;
 }
 
 .timeline-scrubber::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: #38bdf8;
-  border: 2px solid #0f172a;
+  border: 2px solid #ffffff;
   cursor: grab;
-  box-shadow: 0 0 6px rgba(56, 189, 248, 0.8);
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.9);
 }
 
 .timeline-scrubber::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: #38bdf8;
-  border: 2px solid #0f172a;
+  border: 2px solid #ffffff;
   cursor: grab;
-  box-shadow: 0 0 6px rgba(56, 189, 248, 0.8);
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.9);
 }
 
 .timeline-right {

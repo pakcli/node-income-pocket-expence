@@ -1,18 +1,26 @@
-// Timeline Controller - Blender Timeline Panel Engine (Brief v04)
-// Features: Dual Mode (Default 1 tx/0.1s vs Date Range & Duration), Scrubber, Transport Controls, Live Playback Simulation
-
 import { store } from './store.js';
 import { i18n } from './i18n.js';
+
+const safeRaf = (typeof requestAnimationFrame === 'function') 
+  ? requestAnimationFrame 
+  : (cb) => setTimeout(() => cb(Date.now()), 16);
+
+const safeCancelRaf = (typeof cancelAnimationFrame === 'function') 
+  ? cancelAnimationFrame 
+  : (id) => clearTimeout(id);
 
 export class TimelineController {
   constructor(flowCanvas) {
     this.flowCanvas = flowCanvas;
     this.isPlaying = false;
-    this.playTimer = null;
     this.playbackSpeed = 1; // 1x, 2x, 0.5x
+    this.currentProgress = 0; // Float 0.0 to 1.0 (smooth playhead)
     this.currentFrame = -1; // -1 means "Live All Time"
     this.transactions = [];
-    this.mode = 'step'; // 'step' (default 0.1s/tx) | 'duration' (date range & proportional duration)
+    this.mode = 'step'; // 'step' (1.5s per transition) | 'duration' (date range & proportional duration)
+    this.rafId = null;
+    this.lastRafTime = null;
+    this.isLive = true;
 
     try {
       this.initElements();
@@ -32,7 +40,6 @@ export class TimelineController {
       console.error('TimelineController refresh error:', err);
     }
 
-    // Expose instance globally for debugging & testing
     if (typeof window !== 'undefined') {
       window.timelineController = this;
     }
@@ -48,6 +55,7 @@ export class TimelineController {
     this.btnLast = document.getElementById('btnTimelineLast');
     this.frameCount = document.getElementById('timelineFrameCount');
     this.activeTxText = document.getElementById('timelineActiveTx');
+    this.progressFill = document.getElementById('timelineProgressFill');
     this.keyframesTrack = document.getElementById('timelineKeyframesTrack');
     this.scrubber = document.getElementById('timelineScrubber');
     this.dateBadge = document.getElementById('timelineDateBadge');
@@ -95,15 +103,13 @@ export class TimelineController {
       e.stopPropagation();
       this.playbackSpeed = this.playbackSpeed === 1 ? 2 : (this.playbackSpeed === 2 ? 0.5 : 1);
       if (this.btnSpeed) this.btnSpeed.textContent = `${this.playbackSpeed}x`;
-      if (this.isPlaying) {
-        this.clearTimer();
-        this.scheduleNextFrame();
-      }
     });
 
+    // Continuous scrubber input (dragging like a video)
     this.scrubber?.addEventListener('input', (e) => {
-      const frame = parseInt(e.target.value, 10);
-      this.jumpTo(frame, true);
+      const val = parseFloat(e.target.value);
+      const ratio = Math.max(0, Math.min(1, val / 1000));
+      this.seekProgress(ratio, true);
     });
 
     // Global keyboard shortcuts (Space: play/pause, Arrow keys: step)
@@ -139,32 +145,50 @@ export class TimelineController {
     if (this.modeSelect) this.modeSelect.value = newMode;
     const wasPlaying = this.isPlaying;
     if (wasPlaying) {
-      this.clearTimer();
+      this.pause();
     }
     this.renderKeyframeDiamonds();
-    this.updateUI();
+    this.seekProgress(this.currentProgress, true);
     if (wasPlaying) {
-      this.scheduleNextFrame();
+      this.play();
     }
   }
 
   refresh() {
-    // Sort transactions chronological ascending for timeline playback
     const rawTxs = store?.state?.transactions || [];
     this.transactions = [...rawTxs].sort((a, b) => new Date(a.date) - new Date(b.date));
 
     const total = this.transactions.length;
     if (this.scrubber) {
       this.scrubber.min = '0';
-      this.scrubber.max = String(Math.max(0, total - 1));
-      if (this.currentFrame === -1 || this.currentFrame >= total) {
-        this.currentFrame = total > 0 ? total - 1 : -1;
-      }
-      this.scrubber.value = String(this.currentFrame >= 0 ? this.currentFrame : 0);
+      this.scrubber.max = '1000';
+      this.scrubber.step = 'any';
+    }
+
+    if (this.currentFrame === -1 || this.currentFrame >= total) {
+      this.currentFrame = total > 0 ? total - 1 : -1;
+      this.currentProgress = total > 1 ? 1 : 0;
     }
 
     this.renderKeyframeDiamonds();
-    this.updateUI();
+    if (this.isLive) {
+      this.setLiveAll();
+    } else {
+      this.seekProgress(this.currentProgress, !this.isPlaying);
+    }
+  }
+
+  getPinProgress(idx) {
+    const total = this.transactions.length;
+    if (total <= 1) return 0;
+    if (this.mode === 'duration') {
+      const tMin = new Date(this.transactions[0].date).getTime();
+      const tMax = new Date(this.transactions[total - 1].date).getTime();
+      const tSpan = Math.max(1, tMax - tMin);
+      const tVal = new Date(this.transactions[idx].date).getTime();
+      return Math.min(1, Math.max(0, (tVal - tMin) / tSpan));
+    }
+    return idx / (total - 1);
   }
 
   renderKeyframeDiamonds() {
@@ -173,33 +197,107 @@ export class TimelineController {
     const total = this.transactions.length;
     if (total <= 1) return;
 
-    let tMin = 0;
-    let tSpan = 1;
-    if (this.mode === 'duration') {
-      tMin = new Date(this.transactions[0].date).getTime();
-      const tMax = new Date(this.transactions[total - 1].date).getTime();
-      tSpan = Math.max(1, tMax - tMin);
-    }
-
     this.transactions.forEach((tx, idx) => {
-      let pct = 0;
-      if (this.mode === 'duration') {
-        const tVal = new Date(tx.date).getTime();
-        pct = Math.min(100, Math.max(0, ((tVal - tMin) / tSpan) * 100));
-      } else {
-        pct = (idx / (total - 1)) * 100;
-      }
+      const pinProgress = this.getPinProgress(idx);
+      const pct = pinProgress * 100;
 
       const diamond = document.createElement('div');
-      diamond.className = `timeline-keyframe-diamond ${idx === this.currentFrame ? 'active' : (idx < this.currentFrame ? 'passed' : '')}`;
-      diamond.style.left = `${pct}%`;
-      diamond.title = `[Frame ${idx + 1}/${total}] ${i18n.formatDate(tx.date)}: ${tx.fromLabel} ➔ ${tx.toLabel} (${i18n.formatCurrency(tx.amount)})`;
+      diamond.className = `timeline-keyframe-diamond ${idx === this.currentFrame ? 'active' : (pinProgress <= this.currentProgress ? 'passed' : '')}`;
+      diamond.style.left = `${pct.toFixed(2)}%`;
+      if (typeof diamond.setAttribute === 'function') {
+        diamond.setAttribute('data-index', String(idx));
+      }
+      diamond.title = `[Pin ${idx + 1}/${total}] ${i18n.formatDate(tx.date)}: ${tx.fromLabel} ➔ ${tx.toLabel} (${i18n.formatCurrency(tx.amount)})`;
+
+      // Make clicking the marked pin changes effortless
+      diamond.addEventListener('pointerdown', (e) => {
+        e.stopPropagation();
+      });
       diamond.addEventListener('click', (e) => {
         e.stopPropagation();
-        this.jumpTo(idx, true);
+        e.preventDefault();
+        this.jumpToPin(idx);
       });
+
       this.keyframesTrack.appendChild(diamond);
     });
+  }
+
+  jumpToPin(idx) {
+    const total = this.transactions.length;
+    if (total === 0) return;
+    const pinProgress = this.getPinProgress(idx);
+    this.seekProgress(pinProgress, true);
+  }
+
+  // Linear progress mapping to active transaction and sub-hop wire progress (0 to 1)
+  getProgressMapping(progress) {
+    const total = this.transactions.length;
+    if (total === 0) return { frameIndex: -1, subProgress: 0 };
+    if (total === 1) return { frameIndex: 0, subProgress: 1 };
+
+    if (this.mode === 'duration') {
+      const tMin = new Date(this.transactions[0].date).getTime();
+      const tMax = new Date(this.transactions[total - 1].date).getTime();
+      const tSpan = Math.max(1, tMax - tMin);
+      if (tSpan <= 1) {
+        const scaled = progress * (total - 1);
+        const frameIndex = Math.min(total - 1, Math.floor(scaled));
+        return { frameIndex, subProgress: scaled - frameIndex };
+      }
+      const targetTime = tMin + progress * tSpan;
+      for (let i = 0; i < total - 1; i++) {
+        const tA = new Date(this.transactions[i].date).getTime();
+        const tB = new Date(this.transactions[i + 1].date).getTime();
+        if (targetTime >= tA && targetTime <= tB) {
+          const sub = (tB > tA) ? ((targetTime - tA) / (tB - tA)) : 0;
+          return { frameIndex: i, subProgress: sub };
+        }
+      }
+      return { frameIndex: total - 1, subProgress: 1.0 };
+    }
+
+    // Step Mode (Linear progression across N-1 segments)
+    const scaled = progress * (total - 1);
+    let frameIndex = Math.floor(scaled);
+    if (frameIndex >= total - 1) {
+      return { frameIndex: total - 1, subProgress: 1.0 };
+    }
+    const subProgress = scaled - frameIndex;
+    return { frameIndex, subProgress };
+  }
+
+  seekProgress(progress, pause = true) {
+    if (pause) {
+      this.pause();
+    }
+    this.isLive = false;
+    this.btnLive?.classList.remove('active');
+    this.currentProgress = Math.max(0, Math.min(1, progress));
+
+    if (this.scrubber) {
+      this.scrubber.value = String(Math.round(this.currentProgress * 1000));
+    }
+    if (this.progressFill?.style) {
+      this.progressFill.style.width = `${(this.currentProgress * 100).toFixed(2)}%`;
+    }
+
+    const { frameIndex, subProgress } = this.getProgressMapping(this.currentProgress);
+    const prevFrame = this.currentFrame;
+    this.currentFrame = frameIndex;
+
+    this.updateUI();
+
+    if (this.flowCanvas) {
+      const tx = this.transactions[frameIndex];
+      if (tx) {
+        if (prevFrame !== frameIndex || this.flowCanvas.highlightedTxId !== tx.id) {
+          this.flowCanvas.highlightTimelineTx(tx.id, this.isPlaying, this.playbackSpeed, subProgress);
+        } else {
+          this.flowCanvas.setCashProgress(subProgress);
+        }
+      }
+    }
   }
 
   togglePlay() {
@@ -214,124 +312,106 @@ export class TimelineController {
     if (!this.transactions || this.transactions.length === 0) {
       this.refresh();
     }
-    if (!this.transactions || this.transactions.length === 0) {
-      console.warn('Timeline: Tidak ada transaksi untuk dimainkan.');
-      return;
-    }
+    const total = this.transactions.length;
+    if (total === 0) return;
 
-    this.clearTimer();
     this.isPlaying = true;
+    this.isLive = false;
 
     if (this.playIcon) this.playIcon.textContent = '⏸';
     if (this.playLabel) this.playLabel.textContent = 'PAUSE';
     this.btnPlay?.classList.add('playing');
     this.btnLive?.classList.remove('active');
 
-    // If at the end or live overview (-1), wrap around to frame 0
-    if (this.currentFrame >= this.transactions.length - 1 || this.currentFrame === -1) {
-      this.jumpTo(0, false);
-    } else {
-      this.syncFlowCanvas();
+    // If at the end or live overview, wrap around to 0
+    if (this.currentProgress >= 0.999) {
+      this.currentProgress = 0;
     }
 
-    this.scheduleNextFrame();
+    if (this.flowCanvas) {
+      this.flowCanvas.resumeCashAnimation();
+    }
+
+    this.lastRafTime = performance.now();
+    this.startPlaybackLoop();
   }
 
-  scheduleNextFrame() {
-    if (!this.isPlaying) return;
-    this.clearTimer();
+  startPlaybackLoop() {
+    if (this.rafId) {
+      safeCancelRaf(this.rafId);
+      this.rafId = null;
+    }
 
     const total = this.transactions.length;
-    if (total === 0) {
-      this.pause();
-      return;
-    }
+    const transitionMs = 1500; // 1.5s per transition at 1x
+    const totalDurationMs = Math.max(1000, (total - 1) * transitionMs);
 
-    // If already at the end frame, hold for a moment then loop back to frame 0
-    if (this.currentFrame >= total - 1) {
-      const holdTime = this.mode === 'duration' ? 1000 : 800;
-      this.playTimer = setTimeout(() => {
-        if (!this.isPlaying) return;
-        this.jumpTo(0, false);
-        this.scheduleNextFrame();
-      }, holdTime);
-      return;
-    }
-
-    let frameDelay = 1500; // default 1.5s per transition (total 3s from kiri to kanan)
-
-    if (this.mode === 'duration') {
-      const t1 = new Date(this.transactions[this.currentFrame].date).getTime();
-      const t2 = new Date(this.transactions[this.currentFrame + 1].date).getTime();
-      const tFirst = new Date(this.transactions[0].date).getTime();
-      const tLast = new Date(this.transactions[total - 1].date).getTime();
-      const totalSpan = Math.max(1, tLast - tFirst);
-      const deltaRatio = Math.max(0, (t2 - t1) / totalSpan);
-
-      // Dynamic duration based on actual date gap: between 800ms and 3000ms
-      frameDelay = Math.max(800, Math.min(3000, Math.round((1000 + deltaRatio * 3000) / this.playbackSpeed)));
-    } else {
-      // Default: Step Mode (1.5s per transition, total 3s from kiri to kanan)
-      frameDelay = Math.max(200, Math.floor(1500 / this.playbackSpeed));
-    }
-
-    this.playTimer = setTimeout(() => {
+    const loop = (now) => {
       if (!this.isPlaying) return;
-      this.step(1, false);
-      this.scheduleNextFrame();
-    }, frameDelay);
-  }
 
-  clearTimer() {
-    if (this.playTimer) {
-      clearTimeout(this.playTimer);
-      clearInterval(this.playTimer);
-      this.playTimer = null;
-    }
+      const dt = (now - this.lastRafTime) * this.playbackSpeed;
+      this.lastRafTime = now;
+
+      this.currentProgress += dt / totalDurationMs;
+
+      if (this.currentProgress >= 1) {
+        this.currentProgress = 1;
+        this.seekProgress(1, false);
+        // Loop back after a brief hold
+        setTimeout(() => {
+          if (this.isPlaying) {
+            this.currentProgress = 0;
+            this.lastRafTime = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+            this.rafId = safeRaf(loop);
+          }
+        }, 600);
+        return;
+      }
+
+      this.seekProgress(this.currentProgress, false);
+      this.rafId = safeRaf(loop);
+    };
+
+    this.rafId = safeRaf(loop);
   }
 
   pause() {
     this.isPlaying = false;
-    this.clearTimer();
+    if (this.rafId) {
+      safeCancelRaf(this.rafId);
+      this.rafId = null;
+    }
     if (this.playIcon) this.playIcon.textContent = '▶';
     if (this.playLabel) this.playLabel.textContent = 'PLAY';
     this.btnPlay?.classList.remove('playing');
-    this.syncFlowCanvas();
+    if (this.flowCanvas) {
+      this.flowCanvas.pauseCashAnimation();
+    }
   }
 
   step(delta, pause = true) {
-    if (this.transactions.length === 0) return;
-    const nextFrame = Math.max(0, Math.min(this.transactions.length - 1, this.currentFrame + delta));
+    const total = this.transactions.length;
+    if (total === 0) return;
+    const nextFrame = Math.max(0, Math.min(total - 1, (this.currentFrame >= 0 ? this.currentFrame : 0) + delta));
     this.jumpTo(nextFrame, pause);
   }
 
   jumpTo(frameIndex, pause = true) {
-    if (pause) {
-      this.isPlaying = false;
-      this.clearTimer();
-      if (this.playIcon) this.playIcon.textContent = '▶';
-      if (this.playLabel) this.playLabel.textContent = 'PLAY';
-      this.btnPlay?.classList.remove('playing');
-    }
-
-    this.currentFrame = frameIndex;
-    if (this.scrubber) this.scrubber.value = String(this.currentFrame);
-
-    const isLast = this.currentFrame === this.transactions.length - 1;
-    if (isLast && !this.isPlaying) {
-      this.btnLive?.classList.add('active');
-    } else {
-      this.btnLive?.classList.remove('active');
-    }
-
-    this.updateUI();
-    this.syncFlowCanvas();
+    const total = this.transactions.length;
+    if (total === 0) return;
+    const clamped = Math.max(0, Math.min(total - 1, frameIndex));
+    const pinProgress = this.getPinProgress(clamped);
+    this.seekProgress(pinProgress, pause);
   }
 
   setLiveAll() {
     this.pause();
-    this.currentFrame = this.transactions.length - 1;
-    if (this.scrubber) this.scrubber.value = String(this.currentFrame);
+    this.isLive = true;
+    const total = this.transactions.length;
+    this.currentFrame = total > 0 ? total - 1 : -1;
+    this.currentProgress = 1;
+    if (this.scrubber) this.scrubber.value = '1000';
+    if (this.progressFill?.style) this.progressFill.style.width = '100%';
     this.btnLive?.classList.add('active');
     this.updateUI();
     if (this.flowCanvas) {
@@ -345,11 +425,14 @@ export class TimelineController {
       this.frameCount.textContent = this.currentFrame >= 0 ? `${this.currentFrame + 1} / ${total}` : `0 / ${total}`;
     }
 
-    // Update active diamonds
+    // Highlight diamond pins
     const diamonds = this.keyframesTrack?.querySelectorAll('.timeline-keyframe-diamond');
     diamonds?.forEach((d, idx) => {
-      d.classList.toggle('active', idx === this.currentFrame);
-      d.classList.toggle('passed', idx < this.currentFrame);
+      const pinProgress = this.getPinProgress(idx);
+      const isPassed = pinProgress <= this.currentProgress + 0.005;
+      const isActive = idx === this.currentFrame;
+      d.classList.toggle('passed', isPassed);
+      d.classList.toggle('active', isActive);
     });
 
     if (this.currentFrame >= 0 && this.currentFrame < total) {
