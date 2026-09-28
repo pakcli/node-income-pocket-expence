@@ -1610,57 +1610,49 @@ export class FlowCanvas {
     }
   }
 
-  // Draw Flying Cash Flow Capsule along Edge Curve ($999 >>>>>> in Rupiah)
+  // Draw Flying Cash Flow Capsule along Edge Curve (Focused on current change: 0.5s transition)
   drawCashFlowCapsule(parent, pathId, txInfo, isTimelineActive, isHighlighted) {
     if (!txInfo || !txInfo.amount) return;
 
+    // Focus only on current changes: timeline active frame or explicitly selected node
+    if (!isTimelineActive && (!isHighlighted || !this.selectedNodeId)) return;
+
     const formattedVal = i18n.formatCurrency(txInfo.amount);
     const sign = txInfo.type === 'income' ? '+' : (txInfo.type === 'expense' ? '-' : '');
-    const displayText = `${sign}${formattedVal} >>>>>>`;
+    const displayText = `${sign}${formattedVal}`;
 
     const textLength = displayText.length;
-    const pillWidth = Math.max(88, Math.round(textLength * 6.6 + 14));
-    const pillHeight = 20;
+    const pillWidth = Math.max(76, Math.round(textLength * 7.2 + 18));
+    const pillHeight = 22;
 
     let strokeColor = '#38bdf8';
     let textColor = '#ffffff';
-    let arrowColor = '#38bdf8';
 
     if (txInfo.type === 'income') {
       strokeColor = '#10b981';
       textColor = '#6ee7b7';
-      arrowColor = '#34d399';
     } else if (txInfo.type === 'expense') {
       strokeColor = '#f87171';
       textColor = '#fca5a5';
-      arrowColor = '#f87171';
     } else if (txInfo.type === 'transfer') {
       strokeColor = '#c084fc';
       textColor = '#e9d5ff';
-      arrowColor = '#c084fc';
     }
 
     if (isTimelineActive) {
       strokeColor = '#fbbf24';
       textColor = '#fef08a';
-      arrowColor = '#fbbf24';
     }
 
     const animGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     animGroup.setAttribute('class', `cash-flow-capsule ${isTimelineActive ? 'cash-flow-active' : ''}`);
     animGroup.style.pointerEvents = 'none';
 
-    // SVG animateMotion to glide along the exact path curve from left to right
+    // SVG animateMotion to glide from node to node in exactly 0.5s per transition
     const animMotion = document.createElementNS('http://www.w3.org/2000/svg', 'animateMotion');
-    const animDuration = isTimelineActive ? '0.9s' : (isHighlighted ? '1.4s' : '2.4s');
-    animMotion.setAttribute('dur', animDuration);
+    animMotion.setAttribute('dur', '0.5s');
     animMotion.setAttribute('repeatCount', 'indefinite');
     animMotion.setAttribute('rotate', '0'); // Horizontal upright for crisp readability
-
-    if (!isTimelineActive) {
-      const delay = (Math.random() * 1.5).toFixed(2);
-      animMotion.setAttribute('begin', `${delay}s`);
-    }
 
     const mpath = document.createElementNS('http://www.w3.org/2000/svg', 'mpath');
     mpath.setAttribute('href', `#${pathId}`);
@@ -1676,36 +1668,27 @@ export class FlowCanvas {
     pillRect.setAttribute('height', pillHeight.toString());
     pillRect.setAttribute('rx', (pillHeight / 2).toString());
     pillRect.setAttribute('ry', (pillHeight / 2).toString());
-    pillRect.setAttribute('fill', isTimelineActive ? '#090d16' : 'rgba(15, 23, 42, 0.92)');
+    pillRect.setAttribute('fill', isTimelineActive ? '#090d16' : 'rgba(15, 23, 42, 0.94)');
     pillRect.setAttribute('stroke', strokeColor);
     pillRect.setAttribute('stroke-width', isTimelineActive ? '2' : '1.2');
     if (isTimelineActive) {
       pillRect.style.filter = 'drop-shadow(0 0 10px rgba(251, 191, 36, 0.95))';
     } else {
-      pillRect.style.filter = 'drop-shadow(0 2px 5px rgba(0, 0, 0, 0.7))';
+      pillRect.style.filter = 'drop-shadow(0 2px 6px rgba(0, 0, 0, 0.75))';
     }
     animGroup.appendChild(pillRect);
 
-    // Value text + chevron arrows inside pill
+    // Value text inside pill (clean nominal, no >>>>>>)
     const textEl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     textEl.setAttribute('x', '0');
     textEl.setAttribute('y', '0');
     textEl.setAttribute('text-anchor', 'middle');
     textEl.setAttribute('dominant-baseline', 'central');
     textEl.setAttribute('font-family', "'JetBrains Mono', monospace");
-    textEl.setAttribute('font-size', isTimelineActive ? '10' : '9.5');
+    textEl.setAttribute('font-size', isTimelineActive ? '10.5' : '10');
     textEl.setAttribute('font-weight', '800');
-
-    const spanVal = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
-    spanVal.setAttribute('fill', textColor);
-    spanVal.textContent = `${sign}${formattedVal} `;
-    textEl.appendChild(spanVal);
-
-    const spanArr = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
-    spanArr.setAttribute('fill', arrowColor);
-    spanArr.setAttribute('font-weight', '900');
-    spanArr.textContent = '>>>>>>';
-    textEl.appendChild(spanArr);
+    textEl.setAttribute('fill', textColor);
+    textEl.textContent = displayText;
 
     animGroup.appendChild(textEl);
     parent.appendChild(animGroup);

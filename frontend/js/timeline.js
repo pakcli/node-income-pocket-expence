@@ -256,7 +256,7 @@ export class TimelineController {
       return;
     }
 
-    let frameDelay = 100; // default 0.1s
+    let frameDelay = 500; // default 0.5s per transition (total 1s across 2 hops)
 
     if (this.mode === 'duration') {
       const t1 = new Date(this.transactions[this.currentFrame].date).getTime();
@@ -266,11 +266,11 @@ export class TimelineController {
       const totalSpan = Math.max(1, tLast - tFirst);
       const deltaRatio = Math.max(0, (t2 - t1) / totalSpan);
 
-      // Dynamic duration based on actual date gap: between 150ms and 1500ms
-      frameDelay = Math.max(150, Math.min(1500, Math.round((180 + deltaRatio * 2500) / this.playbackSpeed)));
+      // Dynamic duration based on actual date gap: between 300ms and 1500ms
+      frameDelay = Math.max(300, Math.min(1500, Math.round((400 + deltaRatio * 2200) / this.playbackSpeed)));
     } else {
-      // Default: Step Mode (1 instance per 0.1s / 100ms)
-      frameDelay = Math.max(30, Math.floor(100 / this.playbackSpeed));
+      // Default: Step Mode (0.5s per transition, total 1.0s across 2 hops)
+      frameDelay = Math.max(100, Math.floor(500 / this.playbackSpeed));
     }
 
     this.playTimer = setTimeout(() => {
