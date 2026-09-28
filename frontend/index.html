@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Student Pocket Manager (Brief v04)</title>
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/styles.css?v=04.2">
 </head>
 <body>
 
@@ -206,10 +206,10 @@
         </div>
 
         <div class="timeline-right">
-          <!-- Playback Mode Dropdown: Step 0.1s vs Date Range & Duration -->
+          <!-- Playback Mode Dropdown: Default 1 inst / 0.1s vs Date Range & Duration -->
           <div class="timeline-mode-dropdown-wrapper">
             <select id="timelineModeSelect" class="timeline-mode-select" title="Pilih Mode Timeline">
-              <option value="step" selected>⚡ Step (0.1s / tx)</option>
+              <option value="step" selected>⚡ Default (1 inst / 0.1s)</option>
               <option value="duration">📅 Date Range &amp; Duration</option>
             </select>
           </div>
@@ -467,6 +467,6 @@
   <div id="toastContainer" class="toast-container"></div>
 
   <!-- Main ES Module Script -->
-  <script type="module" src="js/app.js"></script>
+  <script type="module" src="js/app.js?v=04.2"></script>
 </body>
 </html>

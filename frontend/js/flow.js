@@ -59,11 +59,19 @@ export class FlowCanvas {
     // Visually toggle active class on nodes corresponding to active timeline transaction
     let activeFromId = null;
     let activeToId = null;
+    let activeMacroIds = [];
     if (txId) {
       const tx = store.state.transactions.find(t => t.id === txId);
       if (tx) {
         activeFromId = tx.fromId;
         activeToId = tx.toId;
+        if (tx.type === 'income') {
+          activeMacroIds = ['total-income', 'total-pocket'];
+        } else if (tx.type === 'expense') {
+          activeMacroIds = ['total-pocket', 'total-expense'];
+        } else {
+          activeMacroIds = ['total-pocket'];
+        }
       }
     }
 
@@ -77,6 +85,12 @@ export class FlowCanvas {
     if (activeToId) {
       const toEl = document.getElementById(`node-el-${activeToId}`);
       if (toEl) toEl.classList.add('node-timeline-active');
+    }
+    if (this.mode === 'simple') {
+      activeMacroIds.forEach(id => {
+        const macroEl = document.getElementById(`node-el-${id}`);
+        if (macroEl) macroEl.classList.add('node-timeline-active');
+      });
     }
   }
 

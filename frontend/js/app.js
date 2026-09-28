@@ -1,9 +1,9 @@
 // Master Application Coordinator (Brief v04)
-import { i18n } from './i18n.js';
-import { store } from './store.js';
-import { accountManager } from './accounts.js';
-import { FlowCanvas } from './flow.js';
-import { TimelineController } from './timeline.js';
+import { i18n } from './i18n.js?v=04.2';
+import { store } from './store.js?v=04.2';
+import { accountManager } from './accounts.js?v=04.2';
+import { FlowCanvas } from './flow.js?v=04.2';
+import { TimelineController } from './timeline.js?v=04.2';
 
 let flowCanvas = null;
 let timelineController = null;
@@ -27,6 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('storeUpdated', () => {
     updateKPIs();
     if (flowCanvas) flowCanvas.render();
+    if (timelineController) timelineController.refresh();
     renderTableLedger();
     if (flowCanvas && flowCanvas.selectedNodeId) {
       inspectNode(flowCanvas.selectedNodeId);
@@ -40,6 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderUserSwitcher();
     updateKPIs();
     if (flowCanvas) flowCanvas.render();
+    if (timelineController) timelineController.refresh();
     renderTableLedger();
   });
 

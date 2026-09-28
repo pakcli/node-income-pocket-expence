@@ -1084,6 +1084,10 @@ body {
   color: #ffffff;
 }
 
+.timeline-btn * {
+  pointer-events: none;
+}
+
 .btn-timeline-play {
   background: #2563eb;
   color: #ffffff;

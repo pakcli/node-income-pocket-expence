@@ -439,6 +439,12 @@ class Store {
     const txs = this.state.transactions.filter(t => t.fromId === nodeId || t.toId === nodeId);
     return txs.sort((a, b) => new Date(b.date) - new Date(a.date));
   }
+
+  subscribe(callback) {
+    const handler = (e) => callback(e.detail || this.state);
+    window.addEventListener('storeUpdated', handler);
+    return () => window.removeEventListener('storeUpdated', handler);
+  }
 }
 
 export const store = new Store();

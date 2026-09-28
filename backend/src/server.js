@@ -19,8 +19,17 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve Static Frontend Assets
-app.use(express.static(FRONTEND_DIR));
+// Serve Static Frontend Assets with no-cache headers for instant local reload
+app.use(express.static(FRONTEND_DIR, {
+  etag: false,
+  lastModified: false,
+  maxAge: 0,
+  setHeaders: (res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
+}));
 
 // API Routes
 app.use('/api/auth', authRoutes);

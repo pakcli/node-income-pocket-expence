@@ -1,5 +1,5 @@
 // Timeline Controller - Blender Timeline Panel Engine (Brief v04)
-// Features: Dual Mode (Step 0.1s vs Date Range & Duration), Scrubber, Transport Controls, Live Playback Simulation
+// Features: Dual Mode (Default 1 tx/0.1s vs Date Range & Duration), Scrubber, Transport Controls, Live Playback Simulation
 
 import { store } from './store.js';
 import { i18n } from './i18n.js';
@@ -14,9 +14,28 @@ export class TimelineController {
     this.transactions = [];
     this.mode = 'step'; // 'step' (default 0.1s/tx) | 'duration' (date range & proportional duration)
 
-    this.initElements();
-    this.bindEvents();
-    this.refresh();
+    try {
+      this.initElements();
+    } catch (err) {
+      console.error('TimelineController initElements error:', err);
+    }
+
+    try {
+      this.bindEvents();
+    } catch (err) {
+      console.error('TimelineController bindEvents error:', err);
+    }
+
+    try {
+      this.refresh();
+    } catch (err) {
+      console.error('TimelineController refresh error:', err);
+    }
+
+    // Expose instance globally for debugging & testing
+    if (typeof window !== 'undefined') {
+      window.timelineController = this;
+    }
   }
 
   initElements() {
@@ -38,24 +57,47 @@ export class TimelineController {
   }
 
   bindEvents() {
-    this.btnPlay?.addEventListener('click', () => this.togglePlay());
-    this.btnFirst?.addEventListener('click', () => this.jumpTo(0, true));
-    this.btnLast?.addEventListener('click', () => this.jumpTo(Math.max(0, this.transactions.length - 1), true));
-    this.btnPrev?.addEventListener('click', () => this.step(-1, true));
-    this.btnNext?.addEventListener('click', () => this.step(1, true));
+    this.btnPlay?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.togglePlay();
+    });
 
-    this.btnLive?.addEventListener('click', () => this.setLiveAll());
+    this.btnFirst?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.jumpTo(0, true);
+    });
+
+    this.btnLast?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.jumpTo(Math.max(0, this.transactions.length - 1), true);
+    });
+
+    this.btnPrev?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.step(-1, true);
+    });
+
+    this.btnNext?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.step(1, true);
+    });
+
+    this.btnLive?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.setLiveAll();
+    });
 
     this.modeSelect?.addEventListener('change', (e) => {
       this.setMode(e.target.value);
     });
 
-    this.btnSpeed?.addEventListener('click', () => {
+    this.btnSpeed?.addEventListener('click', (e) => {
+      e.stopPropagation();
       this.playbackSpeed = this.playbackSpeed === 1 ? 2 : (this.playbackSpeed === 2 ? 0.5 : 1);
       if (this.btnSpeed) this.btnSpeed.textContent = `${this.playbackSpeed}x`;
       if (this.isPlaying) {
-        this.pause();
-        this.play();
+        this.clearTimer();
+        this.scheduleNextFrame();
       }
     });
 
@@ -64,7 +106,7 @@ export class TimelineController {
       this.jumpTo(frame, true);
     });
 
-    // Spacebar to play/pause, Left/Right arrow keys to step
+    // Global keyboard shortcuts (Space: play/pause, Arrow keys: step)
     window.addEventListener('keydown', (e) => {
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) return;
       if (e.code === 'Space') {
@@ -79,9 +121,17 @@ export class TimelineController {
       }
     });
 
-    store.subscribe(() => {
-      this.refresh();
-    });
+    // Resilient store listeners
+    window.addEventListener('storeUpdated', () => this.refresh());
+    window.addEventListener('accountChanged', () => this.refresh());
+
+    if (store && typeof store.subscribe === 'function') {
+      try {
+        store.subscribe(() => this.refresh());
+      } catch (err) {
+        console.warn('store.subscribe attachment warning:', err);
+      }
+    }
   }
 
   setMode(newMode) {
@@ -89,26 +139,28 @@ export class TimelineController {
     if (this.modeSelect) this.modeSelect.value = newMode;
     const wasPlaying = this.isPlaying;
     if (wasPlaying) {
-      this.pause();
+      this.clearTimer();
     }
     this.renderKeyframeDiamonds();
     this.updateUI();
     if (wasPlaying) {
-      this.play();
+      this.scheduleNextFrame();
     }
   }
 
   refresh() {
     // Sort transactions chronological ascending for timeline playback
-    this.transactions = [...store.state.transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const rawTxs = store?.state?.transactions || [];
+    this.transactions = [...rawTxs].sort((a, b) => new Date(a.date) - new Date(b.date));
 
     const total = this.transactions.length;
     if (this.scrubber) {
-      this.scrubber.max = Math.max(0, total - 1);
+      this.scrubber.min = '0';
+      this.scrubber.max = String(Math.max(0, total - 1));
       if (this.currentFrame === -1 || this.currentFrame >= total) {
         this.currentFrame = total > 0 ? total - 1 : -1;
       }
-      this.scrubber.value = this.currentFrame >= 0 ? this.currentFrame : 0;
+      this.scrubber.value = String(this.currentFrame >= 0 ? this.currentFrame : 0);
     }
 
     this.renderKeyframeDiamonds();
@@ -139,7 +191,7 @@ export class TimelineController {
       }
 
       const diamond = document.createElement('div');
-      diamond.className = `timeline-keyframe-diamond ${idx === this.currentFrame ? 'active' : ''}`;
+      diamond.className = `timeline-keyframe-diamond ${idx === this.currentFrame ? 'active' : (idx < this.currentFrame ? 'passed' : '')}`;
       diamond.style.left = `${pct}%`;
       diamond.title = `[Frame ${idx + 1}/${total}] ${i18n.formatDate(tx.date)}: ${tx.fromLabel} ➔ ${tx.toLabel} (${i18n.formatCurrency(tx.amount)})`;
       diamond.addEventListener('click', (e) => {
@@ -159,7 +211,14 @@ export class TimelineController {
   }
 
   play() {
-    if (this.transactions.length === 0) return;
+    if (!this.transactions || this.transactions.length === 0) {
+      this.refresh();
+    }
+    if (!this.transactions || this.transactions.length === 0) {
+      console.warn('Timeline: Tidak ada transaksi untuk dimainkan.');
+      return;
+    }
+
     this.clearTimer();
     this.isPlaying = true;
 
@@ -168,58 +227,63 @@ export class TimelineController {
     this.btnPlay?.classList.add('playing');
     this.btnLive?.classList.remove('active');
 
-    // If at the end or at live overview, restart from beginning
+    // If at the end or live overview (-1), wrap around to frame 0
     if (this.currentFrame >= this.transactions.length - 1 || this.currentFrame === -1) {
       this.jumpTo(0, false);
     }
 
-    if (this.mode === 'duration') {
-      this.scheduleDurationStep();
-    } else {
-      // Default: Step Mode (1 instance per 0.1s / 100ms)
-      const stepDelay = Math.max(25, Math.floor(100 / this.playbackSpeed));
-      this.playTimer = setInterval(() => {
-        if (this.currentFrame < this.transactions.length - 1) {
-          this.step(1, false); // Keep playing without self-pausing!
-        } else {
-          this.pause();
-        }
-      }, stepDelay);
-    }
+    this.scheduleNextFrame();
   }
 
-  scheduleDurationStep() {
+  scheduleNextFrame() {
     if (!this.isPlaying) return;
-    if (this.currentFrame >= this.transactions.length - 1) {
+    this.clearTimer();
+
+    const total = this.transactions.length;
+    if (total === 0) {
       this.pause();
       return;
     }
 
-    const t1 = new Date(this.transactions[this.currentFrame].date).getTime();
-    const t2 = new Date(this.transactions[this.currentFrame + 1].date).getTime();
-    const tFirst = new Date(this.transactions[0].date).getTime();
-    const tLast = new Date(this.transactions[this.transactions.length - 1].date).getTime();
-    const totalSpan = Math.max(1, tLast - tFirst);
-    const deltaRatio = Math.max(0, (t2 - t1) / totalSpan);
+    // If already at the end frame, hold for a moment then loop back to frame 0
+    if (this.currentFrame >= total - 1) {
+      const holdTime = this.mode === 'duration' ? 800 : 600;
+      this.playTimer = setTimeout(() => {
+        if (!this.isPlaying) return;
+        this.jumpTo(0, false);
+        this.scheduleNextFrame();
+      }, holdTime);
+      return;
+    }
 
-    // Dynamic duration: minimum 100ms, mapped up to 1400ms based on date gap
-    const frameDelay = Math.max(80, Math.min(1400, Math.round((100 + deltaRatio * 3200) / this.playbackSpeed)));
+    let frameDelay = 100; // default 0.1s
+
+    if (this.mode === 'duration') {
+      const t1 = new Date(this.transactions[this.currentFrame].date).getTime();
+      const t2 = new Date(this.transactions[this.currentFrame + 1].date).getTime();
+      const tFirst = new Date(this.transactions[0].date).getTime();
+      const tLast = new Date(this.transactions[total - 1].date).getTime();
+      const totalSpan = Math.max(1, tLast - tFirst);
+      const deltaRatio = Math.max(0, (t2 - t1) / totalSpan);
+
+      // Dynamic duration based on actual date gap: between 150ms and 1500ms
+      frameDelay = Math.max(150, Math.min(1500, Math.round((180 + deltaRatio * 2500) / this.playbackSpeed)));
+    } else {
+      // Default: Step Mode (1 instance per 0.1s / 100ms)
+      frameDelay = Math.max(30, Math.floor(100 / this.playbackSpeed));
+    }
 
     this.playTimer = setTimeout(() => {
       if (!this.isPlaying) return;
       this.step(1, false);
-      if (this.currentFrame < this.transactions.length - 1) {
-        this.scheduleDurationStep();
-      } else {
-        this.pause();
-      }
+      this.scheduleNextFrame();
     }, frameDelay);
   }
 
   clearTimer() {
     if (this.playTimer) {
-      clearInterval(this.playTimer);
       clearTimeout(this.playTimer);
+      clearInterval(this.playTimer);
       this.playTimer = null;
     }
   }
@@ -244,7 +308,7 @@ export class TimelineController {
     }
 
     this.currentFrame = frameIndex;
-    if (this.scrubber) this.scrubber.value = this.currentFrame;
+    if (this.scrubber) this.scrubber.value = String(this.currentFrame);
 
     const isLast = this.currentFrame === this.transactions.length - 1;
     if (isLast && !this.isPlaying) {
@@ -260,7 +324,7 @@ export class TimelineController {
   setLiveAll() {
     this.pause();
     this.currentFrame = this.transactions.length - 1;
-    if (this.scrubber) this.scrubber.value = this.currentFrame;
+    if (this.scrubber) this.scrubber.value = String(this.currentFrame);
     this.btnLive?.classList.add('active');
     this.updateUI();
     if (this.flowCanvas) {
@@ -278,7 +342,7 @@ export class TimelineController {
     const diamonds = this.keyframesTrack?.querySelectorAll('.timeline-keyframe-diamond');
     diamonds?.forEach((d, idx) => {
       d.classList.toggle('active', idx === this.currentFrame);
-      d.classList.toggle('passed', idx <= this.currentFrame);
+      d.classList.toggle('passed', idx < this.currentFrame);
     });
 
     if (this.currentFrame >= 0 && this.currentFrame < total) {
