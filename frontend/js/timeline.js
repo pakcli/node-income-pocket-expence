@@ -230,6 +230,8 @@ export class TimelineController {
     // If at the end or live overview (-1), wrap around to frame 0
     if (this.currentFrame >= this.transactions.length - 1 || this.currentFrame === -1) {
       this.jumpTo(0, false);
+    } else {
+      this.syncFlowCanvas();
     }
 
     this.scheduleNextFrame();
@@ -247,7 +249,7 @@ export class TimelineController {
 
     // If already at the end frame, hold for a moment then loop back to frame 0
     if (this.currentFrame >= total - 1) {
-      const holdTime = this.mode === 'duration' ? 800 : 600;
+      const holdTime = this.mode === 'duration' ? 1000 : 800;
       this.playTimer = setTimeout(() => {
         if (!this.isPlaying) return;
         this.jumpTo(0, false);
@@ -256,7 +258,7 @@ export class TimelineController {
       return;
     }
 
-    let frameDelay = 500; // default 0.5s per transition (total 1s across 2 hops)
+    let frameDelay = 1500; // default 1.5s per transition (total 3s from kiri to kanan)
 
     if (this.mode === 'duration') {
       const t1 = new Date(this.transactions[this.currentFrame].date).getTime();
@@ -266,11 +268,11 @@ export class TimelineController {
       const totalSpan = Math.max(1, tLast - tFirst);
       const deltaRatio = Math.max(0, (t2 - t1) / totalSpan);
 
-      // Dynamic duration based on actual date gap: between 300ms and 1500ms
-      frameDelay = Math.max(300, Math.min(1500, Math.round((400 + deltaRatio * 2200) / this.playbackSpeed)));
+      // Dynamic duration based on actual date gap: between 800ms and 3000ms
+      frameDelay = Math.max(800, Math.min(3000, Math.round((1000 + deltaRatio * 3000) / this.playbackSpeed)));
     } else {
-      // Default: Step Mode (0.5s per transition, total 1.0s across 2 hops)
-      frameDelay = Math.max(100, Math.floor(500 / this.playbackSpeed));
+      // Default: Step Mode (1.5s per transition, total 3s from kiri to kanan)
+      frameDelay = Math.max(200, Math.floor(1500 / this.playbackSpeed));
     }
 
     this.playTimer = setTimeout(() => {
@@ -294,6 +296,7 @@ export class TimelineController {
     if (this.playIcon) this.playIcon.textContent = '▶';
     if (this.playLabel) this.playLabel.textContent = 'PLAY';
     this.btnPlay?.classList.remove('playing');
+    this.syncFlowCanvas();
   }
 
   step(delta, pause = true) {
@@ -303,8 +306,12 @@ export class TimelineController {
   }
 
   jumpTo(frameIndex, pause = true) {
-    if (pause && this.isPlaying) {
-      this.pause();
+    if (pause) {
+      this.isPlaying = false;
+      this.clearTimer();
+      if (this.playIcon) this.playIcon.textContent = '▶';
+      if (this.playLabel) this.playLabel.textContent = 'PLAY';
+      this.btnPlay?.classList.remove('playing');
     }
 
     this.currentFrame = frameIndex;
@@ -385,9 +392,9 @@ export class TimelineController {
     if (this.flowCanvas) {
       if (this.currentFrame >= 0 && this.currentFrame < this.transactions.length) {
         const tx = this.transactions[this.currentFrame];
-        this.flowCanvas.highlightTimelineTx(tx.id);
+        this.flowCanvas.highlightTimelineTx(tx.id, this.isPlaying, this.playbackSpeed);
       } else {
-        this.flowCanvas.highlightTimelineTx(null);
+        this.flowCanvas.highlightTimelineTx(null, false, this.playbackSpeed);
       }
     }
   }

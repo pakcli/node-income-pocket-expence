@@ -21,6 +21,8 @@ export class FlowCanvas {
     this.columnSlots = {};
     this.activeDragCleanup = null;
     this.highlightedTxId = null;
+    this.isTimelinePlaying = false;
+    this.timelineSpeed = 1;
 
     window.addEventListener('resize', () => this.render());
   }
@@ -52,8 +54,10 @@ export class FlowCanvas {
     }
   }
 
-  highlightTimelineTx(txId) {
+  highlightTimelineTx(txId, isPlaying = false, speed = 1) {
     this.highlightedTxId = txId;
+    this.isTimelinePlaying = Boolean(isPlaying);
+    this.timelineSpeed = speed || 1;
     this.renderEdges();
 
     // Visually toggle active class on nodes corresponding to active timeline transaction
@@ -1568,6 +1572,9 @@ export class FlowCanvas {
 
     if (isTimelineActive) {
       path.classList.add('edge-timeline-active');
+      if (!this.isTimelinePlaying) {
+        path.classList.add('edge-timeline-paused');
+      }
     } else if (isHighlighted) {
       path.setAttribute('stroke-dasharray', '8,4');
       path.classList.add('edge-animated');
@@ -1598,6 +1605,9 @@ export class FlowCanvas {
 
     if (isTimelineActive) {
       path.classList.add('edge-timeline-active');
+      if (!this.isTimelinePlaying) {
+        path.classList.add('edge-timeline-paused');
+      }
     } else {
       path.setAttribute('stroke-dasharray', '6,3');
     }
@@ -1610,7 +1620,7 @@ export class FlowCanvas {
     }
   }
 
-  // Draw Flying Cash Flow Capsule along Edge Curve (Focused on current change: 0.5s transition)
+  // Draw Flying Cash Flow Capsule along Edge Curve (Focused on current change: 1.5s transition, pauses when timeline is paused)
   drawCashFlowCapsule(parent, pathId, txInfo, isTimelineActive, isHighlighted) {
     if (!txInfo || !txInfo.amount) return;
 
@@ -1648,11 +1658,23 @@ export class FlowCanvas {
     animGroup.setAttribute('class', `cash-flow-capsule ${isTimelineActive ? 'cash-flow-active' : ''}`);
     animGroup.style.pointerEvents = 'none';
 
-    // SVG animateMotion to glide from node to node in exactly 0.5s per transition
+    // SVG animateMotion to glide from node to node in exactly 1.5s per transition (total 3s across 2 hops)
     const animMotion = document.createElementNS('http://www.w3.org/2000/svg', 'animateMotion');
-    animMotion.setAttribute('dur', '0.5s');
-    animMotion.setAttribute('repeatCount', 'indefinite');
     animMotion.setAttribute('rotate', '0'); // Horizontal upright for crisp readability
+
+    if (isTimelineActive && !this.isTimelinePlaying) {
+      // PAUSED: Stop at its track (freeze at 50% midpoint of the curve)
+      animMotion.setAttribute('dur', '1.5s');
+      animMotion.setAttribute('keyPoints', '0.5;0.5');
+      animMotion.setAttribute('keyTimes', '0;1');
+      animMotion.setAttribute('calcMode', 'linear');
+      animMotion.setAttribute('repeatCount', 'indefinite');
+    } else {
+      // PLAYING or node-inspection: Glide across the track in 1.5s
+      const durSec = (1.5 / (this.timelineSpeed || 1)).toFixed(2);
+      animMotion.setAttribute('dur', `${durSec}s`);
+      animMotion.setAttribute('repeatCount', 'indefinite');
+    }
 
     const mpath = document.createElementNS('http://www.w3.org/2000/svg', 'mpath');
     mpath.setAttribute('href', `#${pathId}`);

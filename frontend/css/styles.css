@@ -1346,6 +1346,11 @@ body {
   animation: flowParticleDash 0.8s linear infinite !important;
 }
 
+.edge-timeline-paused {
+  animation: none !important;
+  animation-play-state: paused !important;
+}
+
 /* Animated Cash Flow Value Capsules ($999 >>>>>>) */
 .cash-flow-capsule {
   pointer-events: none;
