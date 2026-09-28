@@ -982,7 +982,7 @@ export class FlowCanvas {
       group.appendChild(subText);
     }
 
-    // Input Sockets
+    // Input Sockets (Pins only on Total Node to prevent text clutter)
     inputs.forEach(inp => {
       const socketY = y + inp.yOffset;
       const socketPin = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
@@ -993,21 +993,15 @@ export class FlowCanvas {
       socketPin.setAttribute('stroke', '#111827');
       socketPin.setAttribute('stroke-width', '2');
       socketPin.classList.add('blender-socket');
-      group.appendChild(socketPin);
-
       if (inp.label) {
-        const socketLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        socketLabel.setAttribute('x', (x + 10).toString());
-        socketLabel.setAttribute('y', (socketY + 3.5).toString());
-        socketLabel.setAttribute('font-size', '9');
-        socketLabel.setAttribute('font-weight', '700');
-        socketLabel.setAttribute('fill', '#94a3b8');
-        socketLabel.textContent = `● ${inp.label}`;
-        group.appendChild(socketLabel);
+        const titleEl = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+        titleEl.textContent = inp.label;
+        socketPin.appendChild(titleEl);
       }
+      group.appendChild(socketPin);
     });
 
-    // Output Sockets
+    // Output Sockets (Pins only on Total Node to prevent text clutter)
     outputs.forEach(out => {
       const socketY = y + out.yOffset;
       const socketPin = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
@@ -1018,19 +1012,12 @@ export class FlowCanvas {
       socketPin.setAttribute('stroke', '#111827');
       socketPin.setAttribute('stroke-width', '2');
       socketPin.classList.add('blender-socket');
-      group.appendChild(socketPin);
-
       if (out.label) {
-        const socketLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        socketLabel.setAttribute('x', (x + width - 10).toString());
-        socketLabel.setAttribute('y', (socketY + 3.5).toString());
-        socketLabel.setAttribute('text-anchor', 'end');
-        socketLabel.setAttribute('font-size', '9');
-        socketLabel.setAttribute('font-weight', '700');
-        socketLabel.setAttribute('fill', '#94a3b8');
-        socketLabel.textContent = `${out.label} ●`;
-        group.appendChild(socketLabel);
+        const titleEl = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+        titleEl.textContent = out.label;
+        socketPin.appendChild(titleEl);
       }
+      group.appendChild(socketPin);
     });
 
     // Node click to inspect

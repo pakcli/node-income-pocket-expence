@@ -206,6 +206,13 @@
         </div>
 
         <div class="timeline-right">
+          <!-- Playback Mode Dropdown: Step 0.1s vs Date Range & Duration -->
+          <div class="timeline-mode-dropdown-wrapper">
+            <select id="timelineModeSelect" class="timeline-mode-select" title="Pilih Mode Timeline">
+              <option value="step" selected>⚡ Step (0.1s / tx)</option>
+              <option value="duration">📅 Date Range &amp; Duration</option>
+            </select>
+          </div>
           <span id="timelineDateBadge" class="timeline-badge-date">LIVE ALL TIME</span>
           <button id="btnTimelineLive" class="timeline-btn-live active" title="Reset ke Tampilan Semua Transaksi">
             <span class="live-indicator-dot"></span> LIVE
