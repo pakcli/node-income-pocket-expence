@@ -3,8 +3,10 @@ import { i18n } from './i18n.js';
 import { store } from './store.js';
 import { accountManager } from './accounts.js';
 import { FlowCanvas } from './flow.js';
+import { TimelineController } from './timeline.js';
 
 let flowCanvas = null;
+let timelineController = null;
 let currentView = 'flow'; // 'flow' | 'table' | 'split'
 let tableFilter = 'all'; // 'all' | 'income' | 'expense' | 'transfer'
 let tableSearchQuery = '';
@@ -61,7 +63,7 @@ function initI18n() {
   }
 }
 
-// 2. Flow Canvas Initialization
+// 2. Flow Canvas & Timeline Initialization
 function initFlowCanvas() {
   const container = document.getElementById('flowViewport');
   if (!container) return;
@@ -70,6 +72,9 @@ function initFlowCanvas() {
     inspectNode(nodeId);
   });
   flowCanvas.render();
+
+  // Instantiate Blender Timeline Controller
+  timelineController = new TimelineController(flowCanvas);
 }
 
 // 3. User Switcher (Brief v04 Sec 2.2)

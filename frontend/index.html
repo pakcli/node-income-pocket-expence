@@ -175,6 +175,44 @@
         </div>
       </div>
       <div id="flowViewport" class="flow-viewport"></div>
+
+      <!-- Blender Timeline Panel (Bottom Docked Transport & Scrubber) -->
+      <div id="timelinePanel" class="blender-timeline-panel">
+        <div class="timeline-left">
+          <div class="timeline-transport-group">
+            <button id="btnTimelineFirst" class="timeline-btn" title="First Keyframe (Home)">⏮</button>
+            <button id="btnTimelinePrev" class="timeline-btn" title="Step Back (Left Arrow)">◀</button>
+            <button id="btnTimelinePlay" class="timeline-btn btn-timeline-play" title="Play/Pause (Spacebar)">
+              <span id="timelinePlayIcon">▶</span>
+              <span id="timelinePlayLabel">PLAY</span>
+            </button>
+            <button id="btnTimelineNext" class="timeline-btn" title="Step Forward (Right Arrow)">▶</button>
+            <button id="btnTimelineLast" class="timeline-btn" title="Latest Keyframe (End)">⏭</button>
+          </div>
+          <div class="timeline-frame-pill">
+            <span class="timeline-frame-tag">FRAME</span>
+            <span id="timelineFrameCount" class="timeline-frame-val">0</span>
+          </div>
+          <div id="timelineActiveTx" class="timeline-active-tx" title="Transaksi Aktif pada Frame Ini">
+            Semua Alur Aktif (Live Overview)
+          </div>
+        </div>
+
+        <div class="timeline-center">
+          <div class="timeline-track-container">
+            <div id="timelineKeyframesTrack" class="timeline-keyframes-track"></div>
+            <input type="range" id="timelineScrubber" class="timeline-scrubber" min="0" max="0" value="0" step="1">
+          </div>
+        </div>
+
+        <div class="timeline-right">
+          <span id="timelineDateBadge" class="timeline-badge-date">LIVE ALL TIME</span>
+          <button id="btnTimelineLive" class="timeline-btn-live active" title="Reset ke Tampilan Semua Transaksi">
+            <span class="live-indicator-dot"></span> LIVE
+          </button>
+          <button id="btnTimelineSpeed" class="timeline-btn-speed" title="Kecepatan Animasi">1x</button>
+        </div>
+      </div>
     </section>
 
     <!-- Node Inspector Sidebar (Fixed 380px Desktop) -->

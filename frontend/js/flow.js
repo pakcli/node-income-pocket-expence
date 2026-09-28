@@ -20,6 +20,7 @@ export class FlowCanvas {
     this.nodePositions = {};
     this.columnSlots = {};
     this.activeDragCleanup = null;
+    this.highlightedTxId = null;
 
     window.addEventListener('resize', () => this.render());
   }
@@ -48,6 +49,34 @@ export class FlowCanvas {
     this.render();
     if (this.onSelectNode) {
       this.onSelectNode(nodeId);
+    }
+  }
+
+  highlightTimelineTx(txId) {
+    this.highlightedTxId = txId;
+    this.renderEdges();
+
+    // Visually toggle active class on nodes corresponding to active timeline transaction
+    let activeFromId = null;
+    let activeToId = null;
+    if (txId) {
+      const tx = store.state.transactions.find(t => t.id === txId);
+      if (tx) {
+        activeFromId = tx.fromId;
+        activeToId = tx.toId;
+      }
+    }
+
+    const allNodes = this.container?.querySelectorAll('.node-blender');
+    allNodes?.forEach(n => n.classList.remove('node-timeline-active'));
+
+    if (activeFromId) {
+      const fromEl = document.getElementById(`node-el-${activeFromId}`);
+      if (fromEl) fromEl.classList.add('node-timeline-active');
+    }
+    if (activeToId) {
+      const toEl = document.getElementById(`node-el-${activeToId}`);
+      if (toEl) toEl.classList.add('node-timeline-active');
     }
   }
 
@@ -85,19 +114,19 @@ export class FlowCanvas {
       store.state.expenseCategories.length,
       3
     );
-    const nodeHeight = 114;
-    const spacing = 24;
-    const totalNodeHeight = 96;
+    const nodeHeight = 90;
+    const spacing = 14;
+    const totalNodeHeight = 76;
 
     let height;
     if (this.mode === 'simple') {
-      height = Math.max(480, this.container.clientHeight || 480);
+      height = Math.max(380, this.container.clientHeight || 380);
     } else if (this.mode === 'both') {
-      const neededHeight = 56 + totalNodeHeight + 24 + (maxColCount * (nodeHeight + spacing)) + 80;
-      height = Math.max(680, neededHeight, this.container.clientHeight || 680);
+      const neededHeight = 36 + totalNodeHeight + 16 + (maxColCount * (nodeHeight + spacing)) + 40;
+      height = Math.max(480, neededHeight, this.container.clientHeight || 480);
     } else { // 'irl'
-      const neededHeight = maxColCount * (nodeHeight + spacing) + 120;
-      height = Math.max(580, neededHeight, this.container.clientHeight || 580);
+      const neededHeight = maxColCount * (nodeHeight + spacing) + 80;
+      height = Math.max(440, neededHeight, this.container.clientHeight || 440);
     }
 
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -183,14 +212,14 @@ export class FlowCanvas {
     const pockets = store.state.pockets;
     const expenses = store.state.expenseCategories;
 
-    const nodeWidth = Math.min(260, Math.max(200, width * 0.28));
-    const totalNodeHeight = 98;
+    const nodeWidth = Math.min(260, Math.max(190, width * 0.28));
+    const totalNodeHeight = 76;
 
     const col1X = Math.max(20, width * 0.04);
     const col2X = width * 0.38;
     const col3X = Math.min(width - nodeWidth - 20, width * 0.72);
 
-    const centerY = Math.max(90, Math.floor((height - totalNodeHeight) / 2) - 20);
+    const centerY = Math.max(60, Math.floor((height - totalNodeHeight) / 2) - 10);
 
     this.nodePositions = {};
     this.columnSlots = {};
@@ -200,34 +229,34 @@ export class FlowCanvas {
       title: 'TOTAL INFLOW (SUMMARY)',
       accentColor: '#10b981',
       x: col1X - 12,
-      y: centerY - 36,
+      y: centerY - 32,
       width: nodeWidth + 24,
-      height: totalNodeHeight + 54
+      height: totalNodeHeight + 48
     });
 
     this.renderBlenderFrame(this.framesGroup, {
       title: 'TOTAL WALLETS (SUMMARY)',
       accentColor: '#38bdf8',
       x: col2X - 12,
-      y: centerY - 36,
+      y: centerY - 32,
       width: nodeWidth + 24,
-      height: totalNodeHeight + 54
+      height: totalNodeHeight + 48
     });
 
     this.renderBlenderFrame(this.framesGroup, {
       title: 'TOTAL EXPENSES (SUMMARY)',
       accentColor: '#f87171',
       x: col3X - 12,
-      y: centerY - 36,
+      y: centerY - 32,
       width: nodeWidth + 24,
-      height: totalNodeHeight + 54
+      height: totalNodeHeight + 48
     });
 
     // 2. Col 1 Total Node
     this.nodePositions['total-income'] = {
       id: 'total-income',
       outX: col1X + nodeWidth,
-      outY: centerY + 64
+      outY: centerY + 50
     };
     this.createBlenderTotalNode(this.nodesGroup, {
       id: 'total-income',
@@ -243,7 +272,7 @@ export class FlowCanvas {
       valueLabel: 'Total Dana Masuk',
       subtitle: `${incomes.length} Sumber Dana Terdaftar`,
       inputs: [],
-      outputs: [{ label: 'Total Inflow ▶', yOffset: 64, color: '#10b981' }],
+      outputs: [{ label: 'Total Inflow ▶', yOffset: 50, color: '#10b981' }],
       selected: this.selectedNodeId === 'total-income'
     });
 
@@ -251,9 +280,9 @@ export class FlowCanvas {
     this.nodePositions['total-pocket'] = {
       id: 'total-pocket',
       inX: col2X,
-      inY: centerY + 64,
+      inY: centerY + 50,
       outX: col2X + nodeWidth,
-      outY: centerY + 64
+      outY: centerY + 50
     };
     this.createBlenderTotalNode(this.nodesGroup, {
       id: 'total-pocket',
@@ -268,8 +297,8 @@ export class FlowCanvas {
       currentValue: i18n.formatCurrency(totalBalance),
       valueLabel: 'Saldo Likuiditas Kas',
       subtitle: `${pockets.length} Kantong & Rekening`,
-      inputs: [{ label: 'Inflow', yOffset: 64, color: '#38bdf8' }],
-      outputs: [{ label: 'Outflow ▶', yOffset: 64, color: '#f87171' }],
+      inputs: [{ label: 'Inflow', yOffset: 50, color: '#38bdf8' }],
+      outputs: [{ label: 'Outflow ▶', yOffset: 50, color: '#f87171' }],
       selected: this.selectedNodeId === 'total-pocket'
     });
 
@@ -277,7 +306,7 @@ export class FlowCanvas {
     this.nodePositions['total-expense'] = {
       id: 'total-expense',
       inX: col3X,
-      inY: centerY + 64
+      inY: centerY + 50
     };
     this.createBlenderTotalNode(this.nodesGroup, {
       id: 'total-expense',
@@ -292,7 +321,7 @@ export class FlowCanvas {
       currentValue: `-${i18n.formatCurrency(totalExpense)}`,
       valueLabel: 'Total Dana Keluar',
       subtitle: `${expenses.length} Pos Pengeluaran`,
-      inputs: [{ label: 'Bayar Beban', yOffset: 64, color: '#f87171' }],
+      inputs: [{ label: 'Bayar Beban', yOffset: 50, color: '#f87171' }],
       outputs: [],
       selected: this.selectedNodeId === 'total-expense'
     });
@@ -311,21 +340,21 @@ export class FlowCanvas {
     const totalExpense = store.getTotalExpense();
 
     const nodeWidth = Math.min(250, Math.max(195, width * 0.27));
-    const totalNodeHeight = 96;
+    const totalNodeHeight = 76;
 
     const col1X = Math.max(20, width * 0.04);
     const col2X = width * 0.38;
     const col3X = Math.min(width - nodeWidth - 20, width * 0.72);
 
-    const topY = 56;
-    const detailStartY = topY + totalNodeHeight + 24;
+    const topY = 30;
+    const detailStartY = topY + totalNodeHeight + 16;
 
     const calcY = (items, customSpacing = spacing) => {
       return items.map((_, i) => detailStartY + i * (nodeHeight + customSpacing));
     };
 
     const incY = calcY(incomes);
-    const pktY = calcY(pockets, spacing + 6);
+    const pktY = calcY(pockets, spacing + 4);
     const expY = calcY(expenses);
 
     this.nodePositions = {};
@@ -338,36 +367,36 @@ export class FlowCanvas {
     };
 
     // Calculate Column Enclosure Heights for Frames
-    const maxIncY = incY.length > 0 ? (incY[incY.length - 1] + nodeHeight) : (detailStartY + 40);
-    const maxPktY = pktY.length > 0 ? (pktY[pktY.length - 1] + nodeHeight) : (detailStartY + 40);
-    const maxExpY = expY.length > 0 ? (expY[expY.length - 1] + nodeHeight) : (detailStartY + 40);
+    const maxIncY = incY.length > 0 ? (incY[incY.length - 1] + nodeHeight) : (detailStartY + 30);
+    const maxPktY = pktY.length > 0 ? (pktY[pktY.length - 1] + nodeHeight) : (detailStartY + 30);
+    const maxExpY = expY.length > 0 ? (expY[expY.length - 1] + nodeHeight) : (detailStartY + 30);
 
     // 1. Render Enclosing Blender Frames
     this.renderBlenderFrame(this.framesGroup, {
       title: 'INFLOW SOURCES (TOTAL + DETAIL)',
       accentColor: '#10b981',
       x: col1X - 12,
-      y: 20,
+      y: 12,
       width: nodeWidth + 24,
-      height: maxIncY - 20 + 20
+      height: maxIncY - 12 + 14
     });
 
     this.renderBlenderFrame(this.framesGroup, {
       title: 'WALLETS & TRANSFERS (TOTAL + DETAIL)',
       accentColor: '#38bdf8',
       x: col2X - 12,
-      y: 20,
+      y: 12,
       width: nodeWidth + 24,
-      height: maxPktY - 20 + 20
+      height: maxPktY - 12 + 14
     });
 
     this.renderBlenderFrame(this.framesGroup, {
       title: 'EXPENSE OUTFLOWS (TOTAL + DETAIL)',
       accentColor: '#f87171',
       x: col3X - 12,
-      y: 20,
+      y: 12,
       width: nodeWidth + 24,
-      height: maxExpY - 20 + 20
+      height: maxExpY - 12 + 14
     });
 
     // 2. Render Top Total Summary Nodes (Fixed at Top of Columns)
@@ -375,7 +404,7 @@ export class FlowCanvas {
     this.nodePositions['total-income'] = {
       id: 'total-income',
       outX: col1X + nodeWidth,
-      outY: topY + 64
+      outY: topY + 50
     };
     this.createBlenderTotalNode(this.nodesGroup, {
       id: 'total-income',
@@ -391,7 +420,7 @@ export class FlowCanvas {
       valueLabel: 'Total Dana Masuk',
       subtitle: `${incomes.length} Sumber Dana Masuk`,
       inputs: [],
-      outputs: [{ label: 'Total Inflow ▶', yOffset: 64, color: '#10b981' }],
+      outputs: [{ label: 'Total Inflow ▶', yOffset: 50, color: '#10b981' }],
       selected: this.selectedNodeId === 'total-income'
     });
 
@@ -399,9 +428,9 @@ export class FlowCanvas {
     this.nodePositions['total-pocket'] = {
       id: 'total-pocket',
       inX: col2X,
-      inY: topY + 64,
+      inY: topY + 50,
       outX: col2X + nodeWidth,
-      outY: topY + 64
+      outY: topY + 50
     };
     this.createBlenderTotalNode(this.nodesGroup, {
       id: 'total-pocket',
@@ -416,8 +445,8 @@ export class FlowCanvas {
       currentValue: i18n.formatCurrency(totalBalance),
       valueLabel: 'Saldo Likuiditas Kas',
       subtitle: `${pockets.length} Kantong Aktif`,
-      inputs: [{ label: 'Inflow', yOffset: 64, color: '#38bdf8' }],
-      outputs: [{ label: 'Outflow ▶', yOffset: 64, color: '#f87171' }],
+      inputs: [{ label: 'Inflow', yOffset: 50, color: '#38bdf8' }],
+      outputs: [{ label: 'Outflow ▶', yOffset: 50, color: '#f87171' }],
       selected: this.selectedNodeId === 'total-pocket'
     });
 
@@ -425,7 +454,7 @@ export class FlowCanvas {
     this.nodePositions['total-expense'] = {
       id: 'total-expense',
       inX: col3X,
-      inY: topY + 64
+      inY: topY + 50
     };
     this.createBlenderTotalNode(this.nodesGroup, {
       id: 'total-expense',
@@ -440,7 +469,7 @@ export class FlowCanvas {
       currentValue: `-${i18n.formatCurrency(totalExpense)}`,
       valueLabel: 'Total Dana Keluar',
       subtitle: `${expenses.length} Pos Pengeluaran`,
-      inputs: [{ label: 'Bayar Beban', yOffset: 64, color: '#f87171' }],
+      inputs: [{ label: 'Bayar Beban', yOffset: 50, color: '#f87171' }],
       outputs: [],
       selected: this.selectedNodeId === 'total-expense'
     });
@@ -455,7 +484,7 @@ export class FlowCanvas {
         columnKey: 'income',
         x, y, width: nodeWidth, height: nodeHeight,
         outX: x + nodeWidth,
-        outY: y + 84
+        outY: y + 68
       };
 
       this.createBlenderNode(this.nodesGroup, {
@@ -470,7 +499,7 @@ export class FlowCanvas {
         currentValue: i18n.formatCurrency(inc.total),
         valueLabel: 'Total Dana Masuk',
         inputs: [],
-        outputs: [{ label: 'Transfer Out ▶', yOffset: 84, color: '#10b981' }],
+        outputs: [{ label: 'Transfer Out ▶', yOffset: 68, color: '#10b981' }],
         selected: this.selectedNodeId === inc.id
       });
     });
@@ -484,11 +513,11 @@ export class FlowCanvas {
         columnKey: 'pocket',
         x, y, width: nodeWidth, height: nodeHeight,
         inX: x,
-        inY: y + 74,
+        inY: y + 54,
         outX: x + nodeWidth,
-        outY: y + 74,
+        outY: y + 54,
         transferOutX: x + nodeWidth,
-        transferOutY: y + 96
+        transferOutY: y + 74
       };
 
       this.createBlenderNode(this.nodesGroup, {
@@ -502,10 +531,10 @@ export class FlowCanvas {
         badge: pkt.category.toUpperCase(),
         currentValue: i18n.formatCurrency(pkt.balance),
         valueLabel: 'Saldo Sekarang',
-        inputs: [{ label: 'Inflow (Masuk)', yOffset: 74, color: '#38bdf8' }],
+        inputs: [{ label: 'Inflow (Masuk)', yOffset: 54, color: '#38bdf8' }],
         outputs: [
-          { label: 'Belanja Out ▶', yOffset: 74, color: '#f87171' },
-          { label: 'Transfer ⇄', yOffset: 96, color: '#c084fc' }
+          { label: 'Belanja Out ▶', yOffset: 54, color: '#f87171' },
+          { label: 'Transfer ⇄', yOffset: 74, color: '#c084fc' }
         ],
         selected: this.selectedNodeId === pkt.id
       });
@@ -520,7 +549,7 @@ export class FlowCanvas {
         columnKey: 'expense',
         x, y, width: nodeWidth, height: nodeHeight,
         inX: x,
-        inY: y + 84
+        inY: y + 68
       };
 
       this.createBlenderNode(this.nodesGroup, {
@@ -534,7 +563,7 @@ export class FlowCanvas {
         badge: 'EXPENSE',
         currentValue: i18n.formatCurrency(exp.total),
         valueLabel: 'Total Pengeluaran',
-        inputs: [{ label: 'Bayar In', yOffset: 84, color: '#f87171' }],
+        inputs: [{ label: 'Bayar In', yOffset: 68, color: '#f87171' }],
         outputs: [],
         selected: this.selectedNodeId === exp.id
       });
@@ -556,12 +585,12 @@ export class FlowCanvas {
     const col3X = width * 0.72;
 
     const calcY = (items, customSpacing = spacing) => {
-      const startY = 60;
+      const startY = 40;
       return items.map((_, i) => startY + i * (nodeHeight + customSpacing));
     };
 
     const incY = calcY(incomes);
-    const pktY = calcY(pockets, spacing + 6);
+    const pktY = calcY(pockets, spacing + 4);
     const expY = calcY(expenses);
 
     this.nodePositions = {};
@@ -576,27 +605,27 @@ export class FlowCanvas {
       title: 'INFLOW SOURCES',
       accentColor: '#10b981',
       x: col1X - 12,
-      y: 20,
+      y: 16,
       width: nodeWidth + 24,
-      height: (incomes.length * nodeHeight) + (incomes.length * spacing) + 40
+      height: (incomes.length * nodeHeight) + (incomes.length * spacing) + 32
     });
 
     this.renderBlenderFrame(this.framesGroup, {
       title: 'WALLETS & TRANSFERS',
       accentColor: '#38bdf8',
       x: col2X - 12,
-      y: 20,
+      y: 16,
       width: nodeWidth + 24,
-      height: (pockets.length * nodeHeight) + (pockets.length * (spacing + 6)) + 40
+      height: (pockets.length * nodeHeight) + (pockets.length * (spacing + 4)) + 32
     });
 
     this.renderBlenderFrame(this.framesGroup, {
       title: 'EXPENSE OUTFLOWS',
       accentColor: '#f87171',
       x: col3X - 12,
-      y: 20,
+      y: 16,
       width: nodeWidth + 24,
-      height: (expenses.length * nodeHeight) + (expenses.length * spacing) + 40
+      height: (expenses.length * nodeHeight) + (expenses.length * spacing) + 32
     });
 
     // Incomes
@@ -608,7 +637,7 @@ export class FlowCanvas {
         columnKey: 'income',
         x, y, width: nodeWidth, height: nodeHeight,
         outX: x + nodeWidth,
-        outY: y + 84
+        outY: y + 68
       };
 
       this.createBlenderNode(this.nodesGroup, {
@@ -623,7 +652,7 @@ export class FlowCanvas {
         currentValue: i18n.formatCurrency(inc.total),
         valueLabel: 'Total Dana Masuk',
         inputs: [],
-        outputs: [{ label: 'Transfer Out ▶', yOffset: 84, color: '#10b981' }],
+        outputs: [{ label: 'Transfer Out ▶', yOffset: 68, color: '#10b981' }],
         selected: this.selectedNodeId === inc.id
       });
     });
@@ -637,11 +666,11 @@ export class FlowCanvas {
         columnKey: 'pocket',
         x, y, width: nodeWidth, height: nodeHeight,
         inX: x,
-        inY: y + 74,
+        inY: y + 54,
         outX: x + nodeWidth,
-        outY: y + 74,
+        outY: y + 54,
         transferOutX: x + nodeWidth,
-        transferOutY: y + 96
+        transferOutY: y + 74
       };
 
       this.createBlenderNode(this.nodesGroup, {
@@ -655,10 +684,10 @@ export class FlowCanvas {
         badge: pkt.category.toUpperCase(),
         currentValue: i18n.formatCurrency(pkt.balance),
         valueLabel: 'Saldo Sekarang',
-        inputs: [{ label: 'Inflow (Masuk)', yOffset: 74, color: '#38bdf8' }],
+        inputs: [{ label: 'Inflow (Masuk)', yOffset: 54, color: '#38bdf8' }],
         outputs: [
-          { label: 'Belanja Out ▶', yOffset: 74, color: '#f87171' },
-          { label: 'Transfer ⇄', yOffset: 96, color: '#c084fc' }
+          { label: 'Belanja Out ▶', yOffset: 54, color: '#f87171' },
+          { label: 'Transfer ⇄', yOffset: 74, color: '#c084fc' }
         ],
         selected: this.selectedNodeId === pkt.id
       });
@@ -673,7 +702,7 @@ export class FlowCanvas {
         columnKey: 'expense',
         x, y, width: nodeWidth, height: nodeHeight,
         inX: x,
-        inY: y + 84
+        inY: y + 68
       };
 
       this.createBlenderNode(this.nodesGroup, {
@@ -687,7 +716,7 @@ export class FlowCanvas {
         badge: 'EXPENSE',
         currentValue: i18n.formatCurrency(exp.total),
         valueLabel: 'Total Pengeluaran',
-        inputs: [{ label: 'Bayar In', yOffset: 84, color: '#f87171' }],
+        inputs: [{ label: 'Bayar In', yOffset: 68, color: '#f87171' }],
         outputs: [],
         selected: this.selectedNodeId === exp.id
       });
@@ -799,33 +828,36 @@ export class FlowCanvas {
     // 2. Individual Transaction Edges (IRL & Both Mode)
     if (this.mode === 'irl' || this.mode === 'both') {
       const edgeDrawn = new Set();
+      const activeTimelineTx = this.highlightedTxId ? store.state.transactions.find(t => t.id === this.highlightedTxId) : null;
 
       store.state.transactions.forEach(tx => {
+        const isTimelineActive = activeTimelineTx && activeTimelineTx.id === tx.id;
         const edgeKey = `${tx.fromId}->${tx.toId}`;
-        if (edgeDrawn.has(edgeKey)) return;
-        edgeDrawn.add(edgeKey);
+        if (!isTimelineActive && edgeDrawn.has(edgeKey)) return;
+        if (!isTimelineActive) edgeDrawn.add(edgeKey);
 
         const fromSocket = this.nodePositions[tx.fromId];
         const toSocket = this.nodePositions[tx.toId];
 
         if (fromSocket && toSocket) {
           let startX, startY, endX, endY;
-          const isHighlighted = this.selectedNodeId === tx.fromId || this.selectedNodeId === tx.toId;
+          const isNodeSelected = this.selectedNodeId === tx.fromId || this.selectedNodeId === tx.toId;
+          const isHighlighted = isTimelineActive || isNodeSelected;
 
           if (tx.type === 'transfer') {
             startX = fromSocket.transferOutX || fromSocket.outX;
             startY = fromSocket.transferOutY || fromSocket.outY;
             endX = toSocket.inX;
             endY = toSocket.inY;
-            this.drawBlenderArcEdge(this.edgesGroup, startX, startY, endX, endY, '#c084fc', 'url(#socket-arrow-purple)', isHighlighted);
+            this.drawBlenderArcEdge(this.edgesGroup, startX, startY, endX, endY, isTimelineActive ? '#fbbf24' : '#c084fc', 'url(#socket-arrow-purple)', isHighlighted, isTimelineActive);
           } else {
             startX = fromSocket.outX;
             startY = fromSocket.outY;
             endX = toSocket.inX;
             endY = toSocket.inY;
-            const color = tx.type === 'income' ? '#10b981' : '#f87171';
+            const color = isTimelineActive ? '#fbbf24' : (tx.type === 'income' ? '#10b981' : '#f87171');
             const marker = tx.type === 'income' ? 'url(#socket-arrow-green)' : 'url(#socket-arrow-red)';
-            this.drawBlenderBezierEdge(this.edgesGroup, startX, startY, endX, endY, color, marker, isHighlighted);
+            this.drawBlenderBezierEdge(this.edgesGroup, startX, startY, endX, endY, color, marker, isHighlighted, isTimelineActive);
           }
         }
       });
@@ -864,7 +896,7 @@ export class FlowCanvas {
     group.appendChild(bodyRect);
 
     // Header Bar
-    const headerHeight = 26;
+    const headerHeight = 24;
     const headerRect = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     const r = 8;
     const pathD = `
@@ -884,8 +916,8 @@ export class FlowCanvas {
     // Header Sigma Symbol
     const sigmaText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     sigmaText.setAttribute('x', (x + 10).toString());
-    sigmaText.setAttribute('y', (y + 17).toString());
-    sigmaText.setAttribute('font-size', '13');
+    sigmaText.setAttribute('y', (y + 16).toString());
+    sigmaText.setAttribute('font-size', '12');
     sigmaText.setAttribute('font-weight', '900');
     sigmaText.setAttribute('fill', 'rgba(255, 255, 255, 0.9)');
     sigmaText.textContent = 'Σ';
@@ -894,7 +926,7 @@ export class FlowCanvas {
     // Header Title
     const headerTitle = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     headerTitle.setAttribute('x', (x + 24).toString());
-    headerTitle.setAttribute('y', (y + 17).toString());
+    headerTitle.setAttribute('y', (y + 16).toString());
     headerTitle.setAttribute('font-size', '11');
     headerTitle.setAttribute('font-weight', '800');
     headerTitle.setAttribute('letter-spacing', '0.5');
@@ -905,7 +937,7 @@ export class FlowCanvas {
     // Header Badge Pill
     const badgeText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     badgeText.setAttribute('x', (x + width - 10).toString());
-    badgeText.setAttribute('y', (y + 17).toString());
+    badgeText.setAttribute('y', (y + 16).toString());
     badgeText.setAttribute('text-anchor', 'end');
     badgeText.setAttribute('font-size', '9');
     badgeText.setAttribute('font-weight', '800');
@@ -917,7 +949,7 @@ export class FlowCanvas {
     // Content: Value Label
     const valLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     valLabel.setAttribute('x', (x + 12).toString());
-    valLabel.setAttribute('y', (y + 42).toString());
+    valLabel.setAttribute('y', (y + 38).toString());
     valLabel.setAttribute('font-size', '10');
     valLabel.setAttribute('font-weight', '600');
     valLabel.setAttribute('fill', '#94a3b8');
@@ -927,8 +959,8 @@ export class FlowCanvas {
     // Big Currency Total Value
     const valText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     valText.setAttribute('x', (x + 12).toString());
-    valText.setAttribute('y', (y + 61).toString());
-    valText.setAttribute('font-size', '15');
+    valText.setAttribute('y', (y + 54).toString());
+    valText.setAttribute('font-size', '14');
     valText.setAttribute('font-weight', '900');
     valText.setAttribute('font-family', "'JetBrains Mono', monospace");
     let valColor = '#38bdf8';
@@ -1037,7 +1069,7 @@ export class FlowCanvas {
     group.appendChild(bodyRect);
 
     // 2. Node Header
-    const headerHeight = 28;
+    const headerHeight = 24;
     const headerRect = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     const r = 8;
     const pathD = `
@@ -1057,30 +1089,30 @@ export class FlowCanvas {
     // Drag Grip Dots
     const gripG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     gripG.innerHTML = `
-      <circle cx="${x + 10}" cy="${y + 11}" r="1.5" fill="rgba(255,255,255,0.7)" />
-      <circle cx="${x + 15}" cy="${y + 11}" r="1.5" fill="rgba(255,255,255,0.7)" />
-      <circle cx="${x + 10}" cy="${y + 17}" r="1.5" fill="rgba(255,255,255,0.7)" />
-      <circle cx="${x + 15}" cy="${y + 17}" r="1.5" fill="rgba(255,255,255,0.7)" />
+      <circle cx="${x + 9}" cy="${y + 9}" r="1.3" fill="rgba(255,255,255,0.7)" />
+      <circle cx="${x + 14}" cy="${y + 9}" r="1.3" fill="rgba(255,255,255,0.7)" />
+      <circle cx="${x + 9}" cy="${y + 15}" r="1.3" fill="rgba(255,255,255,0.7)" />
+      <circle cx="${x + 14}" cy="${y + 15}" r="1.3" fill="rgba(255,255,255,0.7)" />
     `;
     group.appendChild(gripG);
 
     // Header Title
     const headerTitle = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     headerTitle.setAttribute('x', (x + 22).toString());
-    headerTitle.setAttribute('y', (y + 18).toString());
-    headerTitle.setAttribute('font-size', '12');
+    headerTitle.setAttribute('y', (y + 16).toString());
+    headerTitle.setAttribute('font-size', '11');
     headerTitle.setAttribute('font-weight', '700');
     headerTitle.setAttribute('fill', '#ffffff');
-    const maxChars = Math.floor(width / 13) - 2;
+    const maxChars = Math.floor(width / 12) - 2;
     headerTitle.textContent = title.length > maxChars ? title.slice(0, maxChars) + '...' : title;
     group.appendChild(headerTitle);
 
     // Header Badge Pill
     const badgeText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     badgeText.setAttribute('x', (x + width - 10).toString());
-    badgeText.setAttribute('y', (y + 18).toString());
+    badgeText.setAttribute('y', (y + 16).toString());
     badgeText.setAttribute('text-anchor', 'end');
-    badgeText.setAttribute('font-size', '9');
+    badgeText.setAttribute('font-size', '8.5');
     badgeText.setAttribute('font-weight', '800');
     badgeText.setAttribute('fill', 'rgba(255, 255, 255, 0.75)');
     badgeText.textContent = badge;
@@ -1089,8 +1121,8 @@ export class FlowCanvas {
     // 3. Content Body - Line 1: Current Value
     const valLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     valLabel.setAttribute('x', (x + 12).toString());
-    valLabel.setAttribute('y', (y + 44).toString());
-    valLabel.setAttribute('font-size', '10');
+    valLabel.setAttribute('y', (y + 36).toString());
+    valLabel.setAttribute('font-size', '9.5');
     valLabel.setAttribute('font-weight', '600');
     valLabel.setAttribute('fill', '#94a3b8');
     valLabel.textContent = `${valueLabel}:`;
@@ -1098,8 +1130,8 @@ export class FlowCanvas {
 
     const valText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     valText.setAttribute('x', (x + 12).toString());
-    valText.setAttribute('y', (y + 62).toString());
-    valText.setAttribute('font-size', '14');
+    valText.setAttribute('y', (y + 50).toString());
+    valText.setAttribute('font-size', '13.5');
     valText.setAttribute('font-weight', '800');
     valText.setAttribute('font-family', "'JetBrains Mono', monospace");
     let valColor = '#38bdf8';
@@ -1112,9 +1144,9 @@ export class FlowCanvas {
     // Divider Line
     const divLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
     divLine.setAttribute('x1', (x + 8).toString());
-    divLine.setAttribute('y1', (y + 68).toString());
+    divLine.setAttribute('y1', (y + 55).toString());
     divLine.setAttribute('x2', (x + width - 8).toString());
-    divLine.setAttribute('y2', (y + 68).toString());
+    divLine.setAttribute('y2', (y + 55).toString());
     divLine.setAttribute('stroke', '#2d3340');
     divLine.setAttribute('stroke-width', '1');
     group.appendChild(divLine);
@@ -1134,8 +1166,8 @@ export class FlowCanvas {
 
       const socketLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       socketLabel.setAttribute('x', (x + 10).toString());
-      socketLabel.setAttribute('y', (socketY + 4).toString());
-      socketLabel.setAttribute('font-size', '10');
+      socketLabel.setAttribute('y', (socketY + 3.5).toString());
+      socketLabel.setAttribute('font-size', '9');
       socketLabel.setAttribute('font-weight', '600');
       socketLabel.setAttribute('fill', '#cbd5e1');
       socketLabel.textContent = `● ${inp.label}`;
@@ -1157,9 +1189,9 @@ export class FlowCanvas {
 
       const socketLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       socketLabel.setAttribute('x', (x + width - 10).toString());
-      socketLabel.setAttribute('y', (socketY + 4).toString());
+      socketLabel.setAttribute('y', (socketY + 3.5).toString());
       socketLabel.setAttribute('text-anchor', 'end');
-      socketLabel.setAttribute('font-size', '10');
+      socketLabel.setAttribute('font-size', '9');
       socketLabel.setAttribute('font-weight', '600');
       socketLabel.setAttribute('fill', '#cbd5e1');
       socketLabel.textContent = `${out.label} ●`;
@@ -1446,7 +1478,7 @@ export class FlowCanvas {
     nodeGroup.addEventListener('pointerdown', onPointerDown);
   }
 
-  drawBlenderBezierEdge(parent, x1, y1, x2, y2, color, marker, isHighlighted) {
+  drawBlenderBezierEdge(parent, x1, y1, x2, y2, color, marker, isHighlighted, isTimelineActive = false) {
     const dx = Math.abs(x2 - x1) * 0.55;
     const cp1x = x1 + dx;
     const cp1y = y1;
@@ -1458,9 +1490,11 @@ export class FlowCanvas {
     path.setAttribute('d', d);
     path.setAttribute('fill', 'none');
     path.setAttribute('stroke', color);
-    path.setAttribute('stroke-width', isHighlighted ? '3.5' : '2.2');
-    path.setAttribute('stroke-opacity', isHighlighted ? '1' : '0.65');
-    if (isHighlighted) {
+    path.setAttribute('stroke-width', isTimelineActive ? '4' : (isHighlighted ? '3.5' : '2.2'));
+    path.setAttribute('stroke-opacity', (isTimelineActive || isHighlighted) ? '1' : '0.65');
+    if (isTimelineActive) {
+      path.classList.add('edge-timeline-active');
+    } else if (isHighlighted) {
       path.setAttribute('stroke-dasharray', '8,4');
       path.classList.add('edge-animated');
     }
@@ -1468,7 +1502,7 @@ export class FlowCanvas {
     parent.appendChild(path);
   }
 
-  drawBlenderArcEdge(parent, x1, y1, x2, y2, color, marker, isHighlighted) {
+  drawBlenderArcEdge(parent, x1, y1, x2, y2, color, marker, isHighlighted, isTimelineActive = false) {
     const offset = 48;
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     const midX = Math.max(x1, x2) + offset;
@@ -1477,9 +1511,13 @@ export class FlowCanvas {
     path.setAttribute('d', d);
     path.setAttribute('fill', 'none');
     path.setAttribute('stroke', color);
-    path.setAttribute('stroke-width', isHighlighted ? '3' : '2');
-    path.setAttribute('stroke-opacity', isHighlighted ? '1' : '0.7');
-    path.setAttribute('stroke-dasharray', '6,3');
+    path.setAttribute('stroke-width', isTimelineActive ? '4' : (isHighlighted ? '3' : '2'));
+    path.setAttribute('stroke-opacity', (isTimelineActive || isHighlighted) ? '1' : '0.7');
+    if (isTimelineActive) {
+      path.classList.add('edge-timeline-active');
+    } else {
+      path.setAttribute('stroke-dasharray', '6,3');
+    }
     path.setAttribute('marker-end', marker);
     parent.appendChild(path);
   }
