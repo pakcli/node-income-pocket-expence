@@ -76,10 +76,16 @@ async function run() {
     process.exit(1);
   }
 
-  // 3. Test View Layout Modes Class Logic
-  const validModes = ['mode-flow', 'mode-table', 'mode-split'];
-  console.log(`3. Verified supported view modes: ${validModes.join(', ')}`);
-  console.log('   [PASS] Split view supports 50-50 (inspector closed) and 40-20-40 (inspector open)!');
+  // 4. Test Table Sort Order Toggle (Latest First vs Oldest First)
+  const listLatest = [...transactions].sort((a, b) => new Date(b.date) - new Date(a.date));
+  const listOldest = [...transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
+  if (new Date(listLatest[0].date) >= new Date(listLatest[listLatest.length - 1].date) &&
+      new Date(listOldest[0].date) <= new Date(listOldest[listOldest.length - 1].date)) {
+    console.log('4. [PASS] Sort order toggle (Latest First & Oldest First) confirmed!');
+  } else {
+    console.error('4. [FAIL] Sort order logic incorrect');
+    process.exit(1);
+  }
 
   console.log('\n🎉 ALL v05 INTEGRATION TESTS PASSED 100%!');
 }

@@ -20,6 +20,10 @@ Release v05 delivers:
    - `inspector`: Only opens the Inspector without altering table scroll.
 5. **Thinner Compact Nodes (78% Width):** Nodes are re-proportioned to 78% of original width (`207px` max, `168px` min) with symmetrical centered canvas alignment.
 6. **Strict Fee & Attachment Model:** Explicit separation of Admin Fees and Shipping Fees, plus dual-receipt image/PDF attachments per node and transaction.
+7. **Chronological Sort Order Toggle (`Latest First` / `Oldest First`):**
+   - Interactive toggle button in table toolbar (`⬇️ Terbaru Dulu` / `⬆️ Terlama Dulu`) and clickable `Tanggal` table header (`▼` / `▲`).
+   - Default: **`Latest First` (Terbaru Dulu)**.
+   - Dynamically re-aligns the vertical timeline rail and computes accurate mathematical snapshot running balances per transaction regardless of sort direction.
 
 ---
 

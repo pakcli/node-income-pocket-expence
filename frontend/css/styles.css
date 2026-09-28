@@ -1840,5 +1840,24 @@ body {
   font-weight: 900 !important;
 }
 
+/* Sort Order Toggle Button (Latest First vs Oldest First) */
+.sort-order-toggle-btn {
+  user-select: none;
+}
+.sort-order-toggle-btn:hover {
+  background: rgba(30, 41, 59, 0.95) !important;
+  border-color: #38bdf8 !important;
+  color: #ffffff !important;
+  transform: translateY(-1px);
+}
+.sort-order-toggle-btn:active {
+  transform: translateY(0);
+}
+.sort-order-toggle-btn.order-oldest {
+  border-color: #f59e0b !important;
+  color: #fef08a !important;
+}
+
+
 
 

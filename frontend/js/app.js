@@ -11,6 +11,7 @@ let currentView = 'flow'; // 'flow' | 'table' | 'split'
 let isInspectorOpen = true;
 let tableFilter = 'all'; // 'all' | 'income' | 'expense' | 'transfer'
 let tableSearchQuery = '';
+let tableSortOrder = 'latest'; // 'latest' (default) | 'oldest'
 
 document.addEventListener('DOMContentLoaded', () => {
   initI18n();
@@ -1579,8 +1580,67 @@ function initTableLedger() {
     }
   });
 
+  // Sort Order Toggle (Latest First vs Oldest First)
+  const btnToggleSortOrder = document.getElementById('btnToggleSortOrder');
+  const sortOrderIcon = document.getElementById('sortOrderIcon');
+  const sortOrderLabel = document.getElementById('sortOrderLabel');
+  const thSortDate = document.getElementById('thSortDate');
+  const thDateSortIndicator = document.getElementById('thDateSortIndicator');
+
+  const updateSortUI = () => {
+    const isLatest = tableSortOrder === 'latest';
+    if (sortOrderIcon) sortOrderIcon.textContent = isLatest ? '⬇️' : '⬆️';
+    if (sortOrderLabel) sortOrderLabel.textContent = isLatest ? 'Terbaru Dulu' : 'Terlama Dulu';
+    if (thDateSortIndicator) thDateSortIndicator.textContent = isLatest ? '▼' : '▲';
+    if (btnToggleSortOrder) {
+      btnToggleSortOrder.classList.toggle('order-oldest', !isLatest);
+      btnToggleSortOrder.title = isLatest 
+        ? 'Urutan saat ini: Terbaru Dulu (Klik untuk Terlama Dulu)' 
+        : 'Urutan saat ini: Terlama Dulu (Klik untuk Terbaru Dulu)';
+    }
+  };
+
+  const toggleSortOrder = () => {
+    tableSortOrder = tableSortOrder === 'latest' ? 'oldest' : 'latest';
+    updateSortUI();
+    renderTableLedger();
+  };
+
+  if (btnToggleSortOrder) {
+    btnToggleSortOrder.addEventListener('click', toggleSortOrder);
+  }
+
+  if (thSortDate) {
+    thSortDate.addEventListener('click', toggleSortOrder);
+  }
+
+  updateSortUI();
   updateQuickAddDropdowns();
   renderTableLedger();
+}
+
+function getTxRunningBalances() {
+  const allTxs = [...store.state.transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
+  const currentTotal = store.getTotalBalance();
+  const balances = {};
+
+  let bal = currentTotal;
+  for (let i = allTxs.length - 1; i >= 0; i--) {
+    const tx = allTxs[i];
+    balances[tx.id] = bal;
+
+    let impact = 0;
+    if (tx.type === 'income') {
+      impact = tx.amount;
+    } else if (tx.type === 'expense') {
+      impact = -(tx.amount + (tx.adminFee || 0) + (tx.shippingFee || 0));
+    } else if (tx.type === 'transfer') {
+      impact = -(tx.adminFee || 0);
+    }
+    bal -= impact;
+  }
+
+  return balances;
 }
 
 function renderTableLedger() {
@@ -1604,8 +1664,12 @@ function renderTableLedger() {
     );
   }
 
-  // Sort chronological descending (Latest on top, Oldest on bottom)
-  list.sort((a, b) => new Date(b.date) - new Date(a.date));
+  // Sort chronological based on tableSortOrder ('latest' default | 'oldest')
+  if (tableSortOrder === 'oldest') {
+    list.sort((a, b) => new Date(a.date) - new Date(b.date));
+  } else {
+    list.sort((a, b) => new Date(b.date) - new Date(a.date));
+  }
 
   if (list.length === 0) {
     tbody.innerHTML = `
@@ -1618,19 +1682,20 @@ function renderTableLedger() {
     return;
   }
 
-  // Calculate Running Balance per Pocket or Global
-  let runningBalance = store.getTotalBalance();
+  // Calculate Running Balance per transaction accurately
+  const txRunningBalances = getTxRunningBalances();
 
   const activeTxId = (timelineController && timelineController.transactions && timelineController.currentFrame >= 0)
     ? timelineController.transactions[timelineController.currentFrame]?.id
     : null;
 
   list.forEach((tx, idx) => {
-    const isFirst = idx === 0;
-    const isLast = idx === list.length - 1;
-    const isLatest = isFirst;
-    const isOldest = isLast;
+    const isFirstRow = idx === 0;
+    const isLastRow = idx === list.length - 1;
+    const isLatest = tableSortOrder === 'latest' ? isFirstRow : isLastRow;
+    const isOldest = tableSortOrder === 'latest' ? isLastRow : isFirstRow;
     const isFrameActive = activeTxId === tx.id;
+    const runningBal = txRunningBalances[tx.id] ?? store.getTotalBalance();
 
     const isInc = tx.type === 'income';
     const isExp = tx.type === 'expense';
@@ -1649,7 +1714,7 @@ function renderTableLedger() {
 
     tr.innerHTML = `
       <td class="timeline-rail-cell">
-        <div class="timeline-rail-wrapper ${isFirst ? 'is-first' : ''} ${isLast ? 'is-last' : ''}">
+        <div class="timeline-rail-wrapper ${isFirstRow ? 'is-first' : ''} ${isLastRow ? 'is-last' : ''}">
           <div class="timeline-rail-line-top"></div>
           <div class="timeline-rail-dot ${isFrameActive ? 'active' : ''}" data-tx-id="${tx.id}" title="${railTitle}">
             <div class="timeline-rail-dot-core"></div>
@@ -1666,7 +1731,7 @@ function renderTableLedger() {
         ${(tx.adminFee || tx.shippingFee) ? `<span style="font-size: 10px; color: #94a3b8; display: block; font-weight: 400;">(${tx.adminFee ? 'Adm: ' + i18n.formatCurrency(tx.adminFee) : ''}${tx.adminFee && tx.shippingFee ? ', ' : ''}${tx.shippingFee ? 'Ongkir: ' + i18n.formatCurrency(tx.shippingFee) : ''})</span>` : ''}
       </td>
       <td style="font-weight: 700; font-family: 'JetBrains Mono', monospace; color: #93c5fd;">
-        ${i18n.formatCurrency(runningBalance)}
+        ${i18n.formatCurrency(runningBal)}
       </td>
       <td><span style="color: #cbd5e1; font-weight: 500;">${tx.fromLabel}</span></td>
       <td><span style="color: #cbd5e1; font-weight: 500;">${tx.toLabel}</span></td>
