@@ -27,8 +27,19 @@ const DEFAULT_DATA = {
       toId: 'pkt_bca',
       toLabel: 'Bank BCA',
       amount: 2000000,
+      adminFee: 0,
+      shippingFee: 0,
       date: '2026-09-01',
-      note: 'Transfer bulanan awal bulan'
+      note: 'Transfer bulanan awal bulan',
+      attachments: [
+        {
+          id: 'att_1',
+          name: 'Bukti_Transfer_Ortu.pdf',
+          type: 'application/pdf',
+          size: '148 KB',
+          date: '2026-09-01'
+        }
+      ]
     },
     {
       id: 'tx_2',
@@ -38,6 +49,8 @@ const DEFAULT_DATA = {
       toId: 'pkt_cash',
       toLabel: 'Dompet Fisik (Cash)',
       amount: 300000,
+      adminFee: 0,
+      shippingFee: 0,
       date: '2026-09-02',
       note: 'Tarik tunai ATM'
     },
@@ -49,8 +62,19 @@ const DEFAULT_DATA = {
       toId: 'pkt_gopay',
       toLabel: 'GoPay / E-Wallet',
       amount: 200000,
+      adminFee: 1000,
+      shippingFee: 0,
       date: '2026-09-03',
-      note: 'Top up GoPay'
+      note: 'Top up GoPay (Admin Rp 1.000)',
+      attachments: [
+        {
+          id: 'att_3',
+          name: 'Bukti_TopUp_BCA_GoPay.pdf',
+          type: 'application/pdf',
+          size: '182 KB',
+          date: '2026-09-03'
+        }
+      ]
     },
     {
       id: 'tx_4',
@@ -60,8 +84,19 @@ const DEFAULT_DATA = {
       toId: 'exp_food',
       toLabel: 'Makan & Minum Harian',
       amount: 45000,
+      adminFee: 0,
+      shippingFee: 0,
       date: '2026-09-04',
-      note: 'Makan siang Nasi Padang'
+      note: 'Makan siang Nasi Padang',
+      attachments: [
+        {
+          id: 'att_4',
+          name: 'Struk_Makan_Padang.jpg',
+          type: 'image/jpeg',
+          size: '225 KB',
+          date: '2026-09-04'
+        }
+      ]
     },
     {
       id: 'tx_5',
@@ -70,9 +105,20 @@ const DEFAULT_DATA = {
       fromLabel: 'GoPay / E-Wallet',
       toId: 'exp_transport',
       toLabel: 'Bensin & Transport',
-      amount: 35000,
+      amount: 25000,
+      adminFee: 2000,
+      shippingFee: 8000,
       date: '2026-09-05',
-      note: 'Gojek ke kampus'
+      note: 'Gojek ke kampus (Tarif + Ongkir + Jasa Aplikasi)',
+      attachments: [
+        {
+          id: 'att_5',
+          name: 'E-Receipt_Gojek.png',
+          type: 'image/png',
+          size: '135 KB',
+          date: '2026-09-05'
+        }
+      ]
     }
   ]
 };
@@ -129,6 +175,9 @@ class Store {
 
     sorted.forEach(tx => {
       const amt = Number(tx.amount) || 0;
+      const adminFee = Number(tx.adminFee) || 0;
+      const shippingFee = Number(tx.shippingFee) || 0;
+
       if (tx.type === 'income') {
         const inc = this.state.incomeSources.find(i => i.id === tx.fromId);
         if (inc) inc.total += amt;
@@ -138,19 +187,20 @@ class Store {
           pkt.balance += amt;
         }
       } else if (tx.type === 'expense') {
+        const totalExp = amt + adminFee + shippingFee;
         const pkt = this.state.pockets.find(p => p.id === tx.fromId);
         if (pkt) {
-          pkt.outflow += amt;
-          pkt.balance -= amt;
+          pkt.outflow += totalExp;
+          pkt.balance -= totalExp;
         }
         const exp = this.state.expenseCategories.find(e => e.id === tx.toId);
-        if (exp) exp.total += amt;
+        if (exp) exp.total += totalExp;
       } else if (tx.type === 'transfer') {
         const fromPkt = this.state.pockets.find(p => p.id === tx.fromId);
         const toPkt = this.state.pockets.find(p => p.id === tx.toId);
         if (fromPkt) {
-          fromPkt.outflow += amt;
-          fromPkt.balance -= amt;
+          fromPkt.outflow += (amt + adminFee);
+          fromPkt.balance -= (amt + adminFee);
         }
         if (toPkt) {
           toPkt.inflow += amt;
@@ -248,7 +298,7 @@ class Store {
     return cat;
   }
 
-  async addTransaction({ type, fromId, fromLabel, toId, toLabel, amount, date, note }) {
+  async addTransaction({ type, fromId, fromLabel, toId, toLabel, amount, date, note, adminFee = 0, shippingFee = 0, attachments = [] }) {
     const tx = {
       id: 'tx_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
       type,
@@ -257,6 +307,9 @@ class Store {
       toId,
       toLabel,
       amount: Number(amount) || 0,
+      adminFee: Number(adminFee) || 0,
+      shippingFee: Number(shippingFee) || 0,
+      attachments: Array.isArray(attachments) ? attachments : [],
       date: date || new Date().toISOString().split('T')[0],
       note: note || ''
     };
@@ -278,6 +331,54 @@ class Store {
     } catch (e) {}
 
     return tx;
+  }
+
+  getNodeAttachments(nodeId) {
+    const txs = this.getNodeLedger(nodeId);
+    const list = [];
+    txs.forEach(t => {
+      if (Array.isArray(t.attachments)) {
+        t.attachments.forEach(att => {
+          list.push({
+            ...att,
+            txId: t.id,
+            txNote: t.note,
+            txAmount: t.amount,
+            txDate: t.date,
+            txType: t.type
+          });
+        });
+      }
+    });
+    return list;
+  }
+
+  async addAttachmentToNode(nodeId, attachment) {
+    const txs = this.getNodeLedger(nodeId);
+    if (txs.length > 0) {
+      const targetTx = txs[0];
+      if (!Array.isArray(targetTx.attachments)) targetTx.attachments = [];
+      targetTx.attachments.push(attachment);
+      this.saveState();
+      return targetTx;
+    } else {
+      const node = this.state.pockets.find(p => p.id === nodeId)
+        || this.state.incomeSources.find(i => i.id === nodeId)
+        || this.state.expenseCategories.find(e => e.id === nodeId);
+      const isPocket = this.state.pockets.some(p => p.id === nodeId);
+      const isInc = this.state.incomeSources.some(i => i.id === nodeId);
+      const tx = await this.addTransaction({
+        type: isPocket ? 'transfer' : (isInc ? 'income' : 'expense'),
+        fromId: nodeId,
+        fromLabel: node ? node.label : 'Node',
+        toId: nodeId,
+        toLabel: node ? node.label : 'Node',
+        amount: 0,
+        note: `Lampiran: ${attachment.name}`,
+        attachments: [attachment]
+      });
+      return tx;
+    }
   }
 
   async deleteTransaction(id) {

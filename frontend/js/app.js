@@ -289,36 +289,182 @@ function renderPanelCreateNodeForm() {
   });
 }
 
+function formatBytes(bytes) {
+  if (!bytes || bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
+function openAttachmentPreview(att) {
+  const modal = document.getElementById('modalPreviewAttachment');
+  if (!modal) return;
+
+  const iconEl = document.getElementById('previewAttachmentIcon');
+  const titleEl = document.getElementById('previewAttachmentTitle');
+  const subEl = document.getElementById('previewAttachmentSubtitle');
+  const metaEl = document.getElementById('previewAttachmentMeta');
+  const contentEl = document.getElementById('previewAttachmentContent');
+
+  const isPdf = (att.type && att.type.includes('pdf')) || (att.name && att.name.toLowerCase().endsWith('.pdf'));
+  if (iconEl) iconEl.textContent = isPdf ? '📄' : '🖼️';
+  if (titleEl) titleEl.textContent = att.name;
+  if (subEl) subEl.textContent = att.txNote ? `Terkait: ${att.txNote}` : 'Bukti Transaksi Digital Resmi';
+  if (metaEl) metaEl.textContent = `Ukuran: ${att.size || '180 KB'} • Format: ${isPdf ? 'PDF Dokumen' : 'Gambar (PNG/JPG)'} • Tanggal: ${att.date || new Date().toISOString().split('T')[0]}`;
+
+  if (contentEl) {
+    if (att.dataUrl && !isPdf) {
+      contentEl.innerHTML = `<img src="${att.dataUrl}" alt="${att.name}" style="max-width: 100%; max-height: 480px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.6); object-fit: contain;">`;
+    } else if (isPdf) {
+      contentEl.innerHTML = `
+        <div class="digital-receipt-ticket">
+          <div class="digital-receipt-header">
+            <div class="digital-receipt-logo">📄 E-RECEIPT &bull; DOKUMEN SAH</div>
+            <div class="digital-receipt-title">Bukti Transaksi Keuangan Digital (PDF)</div>
+            <div style="font-size: 11px; color: #64748b; margin-top: 4px;">No. Referensi: REF-${att.id || 'SPM-99214'}</div>
+          </div>
+          <table class="digital-receipt-table">
+            <tr>
+              <td style="color: #64748b;">Nama Berkas:</td>
+              <td style="font-weight: 700; text-align: right; color: #0284c7;">${att.name}</td>
+            </tr>
+            <tr>
+              <td style="color: #64748b;">Waktu Penerbitan:</td>
+              <td style="font-weight: 600; text-align: right;">${att.date || new Date().toISOString().split('T')[0]}</td>
+            </tr>
+            <tr>
+              <td style="color: #64748b;">Keterangan Mutasi:</td>
+              <td style="font-weight: 600; text-align: right;">${att.txNote || 'Transaksi Tercatat'}</td>
+            </tr>
+            ${att.txAmount ? `
+              <tr>
+                <td style="color: #64748b;">Nominal:</td>
+                <td style="font-weight: 700; font-family: monospace; text-align: right; color: #0f172a;">${i18n.formatCurrency(att.txAmount)}</td>
+              </tr>
+            ` : ''}
+            <tr>
+              <td style="color: #64748b;">Ukuran Dokumen:</td>
+              <td style="font-weight: 600; text-align: right;">${att.size || '185 KB'}</td>
+            </tr>
+          </table>
+          <div class="digital-receipt-divider"></div>
+          <div class="digital-receipt-total-row">
+            <span style="font-size: 12px; color: #64748b;">Status Audit:</span>
+            <span class="digital-receipt-stamp">✓ VERIFIED &bull; SAH</span>
+          </div>
+          <div style="margin-top: 16px; font-size: 10px; color: #94a3b8; text-align: center;">
+            Dokumen elektronik ini tersimpan aman di Student Pocket Manager.
+          </div>
+        </div>
+      `;
+    } else {
+      contentEl.innerHTML = `
+        <div class="digital-receipt-ticket" style="border: 2px dashed #93c5fd; background: #f8fafc;">
+          <div class="digital-receipt-header">
+            <div class="digital-receipt-logo" style="color: #7c3aed;">🖼️ BUKTI STRUK / KWITANSI</div>
+            <div class="digital-receipt-title">Foto / Scan Bukti Pembayaran Fisik</div>
+            <div style="font-size: 11px; color: #64748b; margin-top: 4px;">ID Berkas: ${att.id || 'IMG-8812'}</div>
+          </div>
+          <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; background: #ede9fe; border-radius: 8px; margin-bottom: 12px;">
+            <span style="font-size: 40px; margin-bottom: 6px;">🧾</span>
+            <span style="font-weight: 800; font-size: 14px; color: #5b21b6;">${att.name}</span>
+            <span style="font-size: 11px; color: #7c3aed;">${att.size || '210 KB'} &bull; Resolusi Tinggi</span>
+          </div>
+          <table class="digital-receipt-table">
+            <tr>
+              <td style="color: #64748b;">Catatan:</td>
+              <td style="font-weight: 600; text-align: right;">${att.txNote || 'Kuitansi Transaksi'}</td>
+            </tr>
+            <tr>
+              <td style="color: #64748b;">Status Bukti:</td>
+              <td style="font-weight: 700; color: #16a34a; text-align: right;">Tersimpan &bull; Terverifikasi</td>
+            </tr>
+          </table>
+          <div class="digital-receipt-divider"></div>
+          <div style="text-align: center;">
+            <span class="digital-receipt-stamp" style="border-color: #7c3aed; color: #7c3aed;">✓ STRUK TERLAMPIR</span>
+          </div>
+        </div>
+      `;
+    }
+  }
+
+  openModal('modalPreviewAttachment');
+}
+
 function renderTxItemsHtml(txs) {
   if (txs.length === 0) {
     return `<p style="font-size: 12px; color: var(--text-muted);">${i18n.t('no_transactions')}</p>`;
   }
-  return txs.map(t => `
-    <div style="background: rgba(15, 23, 42, 0.4); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; font-size: 12px;">
-      <div style="display: flex; justify-content: space-between; font-weight: 700;">
-        <span>${i18n.formatDate(t.date)}</span>
-        <span class="${t.type === 'income' ? 'delta-income' : (t.type === 'expense' ? 'delta-expense' : 'delta-transfer')}">
-          ${t.type === 'income' ? '+' : '-'}${i18n.formatCurrency(t.amount)}
-        </span>
-      </div>
-      <div style="color: var(--text-muted); margin-top: 4px; font-size: 11px;">
-        ${t.fromLabel} &rarr; ${t.toLabel}
-      </div>
+  return txs.map(t => {
+    const adminFee = Number(t.adminFee) || 0;
+    const shippingFee = Number(t.shippingFee) || 0;
+    const hasBreakdown = adminFee > 0 || shippingFee > 0;
+    const attachments = Array.isArray(t.attachments) ? t.attachments : [];
 
-      <!-- Note View & Inline Editor -->
-      <div id="tx-note-wrapper-${t.id}" style="margin-top: 6px; padding-top: 4px; border-top: 1px dashed rgba(255,255,255,0.06); display: flex; justify-content: space-between; align-items: center;">
-        <span id="tx-note-text-${t.id}" style="color: var(--text-secondary); font-style: italic;">
-          "${t.note || 'Tidak ada catatan'}"
-        </span>
-        <button class="btn-inline-edit-note" data-txid="${t.id}" style="background: transparent; border: none; color: #38bdf8; font-size: 11px; cursor: pointer; padding: 2px 6px;">
-          ✏️ Edit
-        </button>
+    return `
+      <div style="background: rgba(15, 23, 42, 0.4); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; font-size: 12px;">
+        <div style="display: flex; justify-content: space-between; font-weight: 700;">
+          <span>${i18n.formatDate(t.date)}</span>
+          <span class="${t.type === 'income' ? 'delta-income' : (t.type === 'expense' ? 'delta-expense' : 'delta-transfer')}">
+            ${t.type === 'income' ? '+' : '-'}${i18n.formatCurrency(t.amount)}
+          </span>
+        </div>
+        <div style="color: var(--text-muted); margin-top: 4px; font-size: 11px;">
+          ${t.fromLabel} &rarr; ${t.toLabel}
+        </div>
+
+        ${hasBreakdown ? `
+          <div style="display: flex; gap: 4px; margin-top: 5px; flex-wrap: wrap;">
+            ${adminFee > 0 ? `<span class="fee-breakdown-chip" title="Biaya Admin">Admin: ${i18n.formatCurrency(adminFee)}</span>` : ''}
+            ${shippingFee > 0 ? `<span class="fee-breakdown-chip" style="color: #67e8f9; background: rgba(6, 182, 212, 0.15); border-color: rgba(6, 182, 212, 0.3);" title="Ongkos Kirim">Ongkir: ${i18n.formatCurrency(shippingFee)}</span>` : ''}
+          </div>
+        ` : ''}
+
+        ${attachments.length > 0 ? `
+          <div style="display: flex; gap: 4px; margin-top: 5px; flex-wrap: wrap;">
+            ${attachments.map(att => `
+              <button type="button" class="tx-attachment-chip btn-preview-att" data-att-json='${JSON.stringify(att).replace(/'/g, "&apos;")}'>
+                <span>${(att.type && att.type.includes('pdf')) || (att.name && att.name.endsWith('.pdf')) ? '📄' : '🖼️'}</span>
+                <span>${att.name}</span>
+              </button>
+            `).join('')}
+          </div>
+        ` : ''}
+
+        <!-- Note View & Inline Editor -->
+        <div id="tx-note-wrapper-${t.id}" style="margin-top: 6px; padding-top: 4px; border-top: 1px dashed rgba(255,255,255,0.06); display: flex; justify-content: space-between; align-items: center;">
+          <span id="tx-note-text-${t.id}" style="color: var(--text-secondary); font-style: italic;">
+            "${t.note || 'Tidak ada catatan'}"
+          </span>
+          <button class="btn-inline-edit-note" data-txid="${t.id}" style="background: transparent; border: none; color: #38bdf8; font-size: 11px; cursor: pointer; padding: 2px 6px;">
+            ✏️ Edit
+          </button>
+        </div>
       </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
 function attachInlineNoteEditors(container, refreshNodeId) {
+  // Hook attachment preview buttons in transaction items
+  container.querySelectorAll('.btn-preview-att').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      try {
+        const json = btn.getAttribute('data-att-json');
+        if (json) {
+          const att = JSON.parse(json);
+          openAttachmentPreview(att);
+        }
+      } catch (err) {
+        console.warn('Error parsing attachment data:', err);
+      }
+    });
+  });
+
+  // Hook note editors
   container.querySelectorAll('.btn-inline-edit-note').forEach(btn => {
     btn.addEventListener('click', () => {
       const txId = btn.getAttribute('data-txid');
@@ -466,6 +612,142 @@ function inspectTotalColumn(colType) {
   attachInlineNoteEditors(body, `total-${colType}`);
 }
 
+function renderPanelAddTxFields(activePanelTxType, node, nodeType) {
+  const pockets = store.state.pockets;
+  const incomeSources = store.state.incomeSources;
+  const expenseCategories = store.state.expenseCategories;
+
+  if (activePanelTxType === 'expense') {
+    const isPocketNode = nodeType === 'account';
+    return `
+      ${isPocketNode ? `
+        <div class="form-group">
+          <label class="form-label" style="font-size: 11px;">Sumber Dana (Dari Kantong)</label>
+          <div style="font-size: 12px; font-weight: 600; color: #60a5fa; background: rgba(59, 130, 246, 0.1); padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(59, 130, 246, 0.2);">
+            💳 ${node.label} (Saldo: ${i18n.formatCurrency(node.balance)})
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" style="font-size: 11px;">Pos Pengeluaran Tujuan</label>
+          <select id="panelTxDestSelect" class="form-select" style="font-size: 12px;">
+            ${expenseCategories.map(e => `<option value="${e.id}">${e.label}</option>`).join('')}
+            <option value="__new__">+ Pos Pengeluaran Baru...</option>
+          </select>
+          <input type="text" id="panelTxNewCategoryInput" class="form-input" placeholder="Ketik nama pos pengeluaran baru" style="display: none; margin-top: 6px; font-size: 12px;">
+        </div>
+      ` : `
+        <div class="form-group">
+          <label class="form-label" style="font-size: 11px;">Dibayar Dari (Kantong)</label>
+          <select id="panelTxSourceSelect" class="form-select" style="font-size: 12px;">
+            ${pockets.map(p => `<option value="${p.id}">${p.label} (${i18n.formatCurrency(p.balance)})</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" style="font-size: 11px;">Pos Pengeluaran</label>
+          <div style="font-size: 12px; font-weight: 600; color: #f87171; background: rgba(239, 68, 68, 0.1); padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(239, 68, 68, 0.2);">
+            🏷️ ${node.label}
+          </div>
+        </div>
+      `}
+
+      <div class="form-group">
+        <label class="form-label" style="font-size: 11px;">Nominal Pokok (Rp)</label>
+        <input type="number" id="panelTxAmount" class="form-input" placeholder="Cth: 50000" min="1" required style="font-size: 12px;">
+      </div>
+
+      <!-- Rincian Biaya Admin & Ongkir -->
+      <div class="inspector-breakdown-box">
+        <div style="font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Rincian Tambahan (Opsional)</div>
+        <div class="inspector-breakdown-row">
+          <div>
+            <label class="form-label" style="font-size: 10px;">Biaya Admin</label>
+            <input type="number" id="panelTxAdminFee" class="form-input" placeholder="0" min="0" value="0" style="padding: 4px 8px; font-size: 11px;">
+          </div>
+          <div>
+            <label class="form-label" style="font-size: 10px;">Ongkos Kirim</label>
+            <input type="number" id="panelTxShippingFee" class="form-input" placeholder="0" min="0" value="0" style="padding: 4px 8px; font-size: 11px;">
+          </div>
+        </div>
+        <div class="inspector-total-pill">
+          <span style="color: #cbd5e1;">Total Terhitung:</span>
+          <span id="panelTxTotalPreview" class="inspector-total-pill-val">Rp 0</span>
+        </div>
+      </div>
+    `;
+  } else if (activePanelTxType === 'income') {
+    const isPocketNode = nodeType === 'account';
+    return `
+      ${isPocketNode ? `
+        <div class="form-group">
+          <label class="form-label" style="font-size: 11px;">Sumber Pemasukan (Dari)</label>
+          <select id="panelTxSourceSelect" class="form-select" style="font-size: 12px;">
+            ${incomeSources.map(i => `<option value="${i.id}">${i.label}</option>`).join('')}
+            <option value="__new__">+ Sumber Pemasukan Baru...</option>
+          </select>
+          <input type="text" id="panelTxNewCategoryInput" class="form-input" placeholder="Ketik nama sumber pemasukan baru" style="display: none; margin-top: 6px; font-size: 12px;">
+        </div>
+        <div class="form-group">
+          <label class="form-label" style="font-size: 11px;">Masuk ke Kantong</label>
+          <div style="font-size: 12px; font-weight: 600; color: #34d399; background: rgba(16, 185, 129, 0.1); padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(16, 185, 129, 0.2);">
+            💰 ${node.label}
+          </div>
+        </div>
+      ` : `
+        <div class="form-group">
+          <label class="form-label" style="font-size: 11px;">Sumber Pemasukan</label>
+          <div style="font-size: 12px; font-weight: 600; color: #34d399; background: rgba(16, 185, 129, 0.1); padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(16, 185, 129, 0.2);">
+            💰 ${node.label}
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" style="font-size: 11px;">Setor ke Kantong / Rekening</label>
+          <select id="panelTxDestSelect" class="form-select" style="font-size: 12px;">
+            ${pockets.map(p => `<option value="${p.id}">${p.label} (${i18n.formatCurrency(p.balance)})</option>`).join('')}
+          </select>
+        </div>
+      `}
+
+      <div class="form-group">
+        <label class="form-label" style="font-size: 11px;">Nominal Pemasukan (Rp)</label>
+        <input type="number" id="panelTxAmount" class="form-input" placeholder="Cth: 500000" min="1" required style="font-size: 12px;">
+      </div>
+    `;
+  } else if (activePanelTxType === 'transfer') {
+    const otherPockets = pockets.filter(p => p.id !== node.id);
+    return `
+      <div class="form-group">
+        <label class="form-label" style="font-size: 11px;">Dari Kantong Asal</label>
+        <div style="font-size: 12px; font-weight: 600; color: #60a5fa; background: rgba(59, 130, 246, 0.1); padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(59, 130, 246, 0.2);">
+          📤 ${node.label} (Saldo: ${i18n.formatCurrency(node.balance)})
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" style="font-size: 11px;">Ke Kantong Tujuan</label>
+        <select id="panelTxDestSelect" class="form-select" style="font-size: 12px;">
+          ${otherPockets.map(p => `<option value="${p.id}">${p.label} (${i18n.formatCurrency(p.balance)})</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" style="font-size: 11px;">Nominal Transfer (Rp)</label>
+        <input type="number" id="panelTxAmount" class="form-input" placeholder="Cth: 100000" min="1" required style="font-size: 12px;">
+      </div>
+
+      <!-- Biaya Admin Transfer -->
+      <div class="inspector-breakdown-box">
+        <div style="font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Biaya Transfer Bank / E-Wallet</div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="form-label" style="font-size: 10px;">Biaya Admin (Rp)</label>
+          <input type="number" id="panelTxAdminFee" class="form-input" placeholder="0" min="0" value="0" style="padding: 4px 8px; font-size: 11px;">
+        </div>
+        <div class="inspector-total-pill">
+          <span style="color: #cbd5e1;">Total Saldo Terpotong:</span>
+          <span id="panelTxTotalPreview" class="inspector-total-pill-val">Rp 0</span>
+        </div>
+      </div>
+    `;
+  }
+}
+
 function inspectNode(nodeId) {
   const body = document.getElementById('inspectorBody');
   if (!body) return;
@@ -508,6 +790,36 @@ function inspectNode(nodeId) {
 
   const txs = store.getNodeLedger(nodeId);
 
+  // Retrieve attachments or provide realistic samples
+  const nodeAttachments = store.getNodeAttachments(nodeId);
+  const sampleAttachments = [
+    {
+      id: `sample_pdf_${node.id}`,
+      name: `Kwitansi_${node.label.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`,
+      type: 'application/pdf',
+      size: '185 KB',
+      date: new Date().toISOString().split('T')[0],
+      txNote: `Bukti transaksi resmi ${node.label}`,
+      txAmount: node.balance || node.total || 50000,
+      isSample: true
+    },
+    {
+      id: `sample_img_${node.id}`,
+      name: `Struk_${node.label.replace(/[^a-zA-Z0-9]/g, '_')}.jpg`,
+      type: 'image/jpeg',
+      size: '220 KB',
+      date: new Date().toISOString().split('T')[0],
+      txNote: `Foto struk / e-receipt ${node.label}`,
+      txAmount: node.balance || node.total || 35000,
+      isSample: true
+    }
+  ];
+  const displayAttachments = nodeAttachments.length > 0 ? nodeAttachments : sampleAttachments;
+
+  // Staged attachments for the quick add transaction form
+  let stagedTxAttachments = [];
+  let activePanelTxType = type === 'account' ? 'expense' : type;
+
   body.innerHTML = `
     <!-- 1. Node Statistics & Info Card -->
     <div class="inspector-node-card">
@@ -538,7 +850,102 @@ function inspectNode(nodeId) {
       </div>
     </div>
 
-    <!-- 2. Strict Panel Data Editor -->
+    <!-- 2. Direct Add Transaction in Inspector Panel -->
+    <div class="inspector-node-card inspector-add-tx-card" style="border: 1px solid rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.04);">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+        <h4 style="font-size: 13px; font-weight: 700; color: #34d399; margin: 0; display: flex; align-items: center; gap: 6px;">
+          <span>➕</span>
+          <span>Catat Transaksi untuk Node Ini</span>
+        </h4>
+        <span class="badge-tag tag-income" style="font-size: 10px; padding: 2px 6px;">PANEL CEPAT</span>
+      </div>
+
+      <form id="formPanelAddTx" style="display: flex; flex-direction: column; gap: 10px;">
+        ${type === 'account' ? `
+          <div class="inspector-tx-type-toggle">
+            <button type="button" class="inspector-tx-type-btn active type-expense" data-ptype="expense">💸 Pengeluaran</button>
+            <button type="button" class="inspector-tx-type-btn type-income" data-ptype="income">💰 Pemasukan</button>
+            <button type="button" class="inspector-tx-type-btn type-transfer" data-ptype="transfer">⇄ Transfer</button>
+          </div>
+        ` : ''}
+
+        <div id="panelTxDynamicFieldsContainer">
+          ${renderPanelAddTxFields(activePanelTxType, node, type)}
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" style="font-size: 11px;">Tanggal Transaksi</label>
+          <input type="date" id="panelTxDate" class="form-input" value="${new Date().toISOString().split('T')[0]}" required style="font-size: 12px;">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" style="font-size: 11px;">Catatan / Deskripsi</label>
+          <input type="text" id="panelTxNote" class="form-input" placeholder="Cth: Belanja mingguan, makan siang..." style="font-size: 12px;">
+        </div>
+
+        <!-- Attachments Selector in Quick Form -->
+        <div class="form-group" style="margin-bottom: 4px;">
+          <label class="form-label" style="font-size: 11px; display: flex; justify-content: space-between;">
+            <span>Lampiran Bukti (PDF, PNG, JPG)</span>
+            <span style="color: var(--text-muted); font-size: 10px;">Opsional</span>
+          </label>
+          <input type="file" id="panelTxFileInput" accept=".pdf,.png,.jpg,.jpeg" style="display: none;">
+          <div style="display: flex; gap: 6px; align-items: center;">
+            <button type="button" id="btnPanelTxPickFile" class="btn-action" style="flex: 1; padding: 5px 8px; font-size: 11px; background: rgba(139, 92, 246, 0.2); color: #c084fc; border: 1px solid rgba(139, 92, 246, 0.4);">
+              📎 Pilih File
+            </button>
+            <button type="button" id="btnPanelTxSampleReceipt" class="btn-action" style="padding: 5px 8px; font-size: 11px; background: #334155; color: #cbd5e1;">
+              📄 Pakai Contoh Struk
+            </button>
+          </div>
+          <div id="panelTxSelectedChips" style="display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px;"></div>
+        </div>
+
+        <button type="submit" class="btn-action btn-income" style="width: 100%; padding: 8px 12px; font-size: 12px; font-weight: 700; margin-top: 4px;">
+          💾 Simpan & Catat Transaksi
+        </button>
+      </form>
+    </div>
+
+    <!-- 3. Berkas Lampiran & Dokumen Digital -->
+    <div class="inspector-node-card" style="border: 1px solid rgba(139, 92, 246, 0.3);">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+        <h4 style="font-size: 13px; font-weight: 700; color: #c084fc; margin: 0; display: flex; align-items: center; gap: 6px;">
+          <span>📎</span>
+          <span>Lampiran Dokumen & Bukti</span>
+        </h4>
+        <label for="inspectorDirectUpload" class="btn-action" style="padding: 3px 8px; font-size: 10px; background: rgba(139, 92, 246, 0.2); color: #c084fc; border: 1px solid rgba(139, 92, 246, 0.4); cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
+          <span>+ Upload File</span>
+        </label>
+        <input type="file" id="inspectorDirectUpload" accept=".pdf,.png,.jpg,.jpeg" style="display: none;">
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        ${displayAttachments.map(att => {
+          const isPdf = (att.type && att.type.includes('pdf')) || (att.name && att.name.toLowerCase().endsWith('.pdf'));
+          return `
+            <div class="inspector-attachment-item">
+              <div style="display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1;">
+                <span class="${isPdf ? 'attachment-badge-pdf' : 'attachment-badge-img'}">${isPdf ? 'PDF' : 'IMG'}</span>
+                <div style="display: flex; flex-direction: column; min-width: 0;">
+                  <span style="font-size: 12px; font-weight: 600; color: #f1f5f9; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">
+                    ${att.name}
+                  </span>
+                  <span style="font-size: 10px; color: var(--text-muted);">
+                    ${att.size || '180 KB'} &bull; ${att.date || '2026-09-05'} ${att.isSample ? '&bull; <i style="color:#a78bfa;">(Contoh)</i>' : ''}
+                  </span>
+                </div>
+              </div>
+              <button type="button" class="btn-action btn-inspect-view-att" data-att-json='${JSON.stringify(att).replace(/'/g, "&apos;")}' style="padding: 3px 8px; font-size: 10px; background: #334155; color: #38bdf8;">
+                👁️ Preview
+              </button>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+
+    <!-- 4. Strict Panel Data Editor -->
     <div class="inspector-node-card" style="border: 1px solid rgba(59, 130, 246, 0.3);">
       <h4 style="font-size: 13px; font-weight: 700; color: #93c5fd; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
         <span>✏️</span>
@@ -574,7 +981,7 @@ function inspectNode(nodeId) {
       </form>
     </div>
 
-    <!-- 3. Transaction History & Note Editor -->
+    <!-- 5. Transaction History & Note Editor -->
     <div>
       <h4 style="font-size: 13px; font-weight: 700; margin-bottom: 10px; color: var(--text-secondary); display: flex; justify-content: space-between; align-items: center;">
         <span>${i18n.t('inspector_history')} (${txs.length})</span>
@@ -585,6 +992,241 @@ function inspectNode(nodeId) {
       </div>
     </div>
   `;
+
+  // Helper: Live calculation update
+  const updateLiveTotalPreview = () => {
+    const amt = Number(document.getElementById('panelTxAmount')?.value) || 0;
+    const admin = Number(document.getElementById('panelTxAdminFee')?.value) || 0;
+    const ship = Number(document.getElementById('panelTxShippingFee')?.value) || 0;
+    const totalPreview = document.getElementById('panelTxTotalPreview');
+    if (totalPreview) {
+      totalPreview.textContent = i18n.formatCurrency(amt + admin + ship);
+    }
+  };
+
+  const bindDynamicFieldsEvents = () => {
+    const amtInput = document.getElementById('panelTxAmount');
+    const adminInput = document.getElementById('panelTxAdminFee');
+    const shipInput = document.getElementById('panelTxShippingFee');
+    [amtInput, adminInput, shipInput].forEach(inp => {
+      inp?.addEventListener('input', updateLiveTotalPreview);
+    });
+    updateLiveTotalPreview();
+
+    // Toggle custom category input if __new__ selected
+    const destSelect = document.getElementById('panelTxDestSelect');
+    const srcSelect = document.getElementById('panelTxSourceSelect');
+    const newCatInput = document.getElementById('panelTxNewCategoryInput');
+
+    const checkNew = (sel) => {
+      if (sel && newCatInput) {
+        newCatInput.style.display = sel.value === '__new__' ? 'block' : 'none';
+        if (sel.value === '__new__') newCatInput.focus();
+      }
+    };
+
+    destSelect?.addEventListener('change', () => checkNew(destSelect));
+    srcSelect?.addEventListener('change', () => checkNew(srcSelect));
+  };
+
+  bindDynamicFieldsEvents();
+
+  // Switch active tx type tabs for accounts
+  body.querySelectorAll('.inspector-tx-type-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      body.querySelectorAll('.inspector-tx-type-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activePanelTxType = btn.getAttribute('data-ptype');
+      const container = document.getElementById('panelTxDynamicFieldsContainer');
+      if (container) {
+        container.innerHTML = renderPanelAddTxFields(activePanelTxType, node, type);
+        bindDynamicFieldsEvents();
+      }
+    });
+  });
+
+  // Staged Attachment Chips Render
+  const renderStagedChips = () => {
+    const chipsContainer = document.getElementById('panelTxSelectedChips');
+    if (!chipsContainer) return;
+    chipsContainer.innerHTML = stagedTxAttachments.map((att, idx) => `
+      <span class="tx-attachment-chip" style="font-size: 11px;">
+        <span>${att.name.endsWith('.pdf') ? '📄' : '🖼️'}</span>
+        <span>${att.name}</span>
+        <button type="button" data-del-staged="${idx}" style="background: transparent; border: none; color: #ef4444; font-weight: 800; cursor: pointer; margin-left: 2px;">✕</button>
+      </span>
+    `).join('');
+
+    chipsContainer.querySelectorAll('[data-del-staged]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = Number(btn.getAttribute('data-del-staged'));
+        stagedTxAttachments.splice(idx, 1);
+        renderStagedChips();
+      });
+    });
+  };
+
+  // Attachment buttons in Quick Add form
+  const fileInput = document.getElementById('panelTxFileInput');
+  document.getElementById('btnPanelTxPickFile')?.addEventListener('click', () => {
+    fileInput?.click();
+  });
+
+  fileInput?.addEventListener('change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (re) => {
+      stagedTxAttachments.push({
+        id: 'att_' + Date.now(),
+        name: file.name,
+        type: file.type || (file.name.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
+        size: formatBytes(file.size),
+        dataUrl: re.target.result,
+        date: new Date().toISOString().split('T')[0]
+      });
+      renderStagedChips();
+    };
+    reader.readAsDataURL(file);
+  });
+
+  document.getElementById('btnPanelTxSampleReceipt')?.addEventListener('click', () => {
+    stagedTxAttachments.push({
+      id: 'att_sample_' + Date.now(),
+      name: `Struk_${node.label.replace(/[^a-zA-Z0-9]/g, '_')}_Alfamart.jpg`,
+      type: 'image/jpeg',
+      size: '235 KB',
+      date: new Date().toISOString().split('T')[0]
+    });
+    renderStagedChips();
+  });
+
+  // Direct Attachment Upload from Inspector Section
+  const directUploadInput = document.getElementById('inspectorDirectUpload');
+  directUploadInput?.addEventListener('change', async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (re) => {
+      const newAtt = {
+        id: 'att_' + Date.now(),
+        name: file.name,
+        type: file.type || (file.name.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
+        size: formatBytes(file.size),
+        dataUrl: re.target.result,
+        date: new Date().toISOString().split('T')[0]
+      };
+      await store.addAttachmentToNode(nodeId, newAtt);
+      showToast(`Berkas "${file.name}" berhasil dilampirkan ke node!`);
+      inspectNode(nodeId);
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // Preview Buttons in Attachments Card
+  body.querySelectorAll('.btn-inspect-view-att').forEach(btn => {
+    btn.addEventListener('click', () => {
+      try {
+        const json = btn.getAttribute('data-att-json');
+        if (json) {
+          const att = JSON.parse(json);
+          openAttachmentPreview(att);
+        }
+      } catch (err) {
+        console.warn('Error previewing attachment:', err);
+      }
+    });
+  });
+
+  // Form Submit: Direct Add Transaction
+  document.getElementById('formPanelAddTx')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const amt = Number(document.getElementById('panelTxAmount')?.value) || 0;
+    const admin = Number(document.getElementById('panelTxAdminFee')?.value) || 0;
+    const ship = Number(document.getElementById('panelTxShippingFee')?.value) || 0;
+    const txDate = document.getElementById('panelTxDate')?.value || new Date().toISOString().split('T')[0];
+    const txNote = document.getElementById('panelTxNote')?.value?.trim() || '';
+
+    let fromId, fromLabel, toId, toLabel;
+
+    if (activePanelTxType === 'expense') {
+      if (type === 'account') {
+        fromId = node.id;
+        fromLabel = node.label;
+        const destSel = document.getElementById('panelTxDestSelect');
+        if (destSel.value === '__new__') {
+          const newLabel = document.getElementById('panelTxNewCategoryInput')?.value?.trim() || 'Pengeluaran Lain';
+          const cat = store.getOrCreateExpenseCategory(newLabel);
+          toId = cat.id;
+          toLabel = cat.label;
+        } else {
+          const cat = store.state.expenseCategories.find(c => c.id === destSel.value);
+          toId = cat ? cat.id : destSel.value;
+          toLabel = cat ? cat.label : 'Expense';
+        }
+      } else {
+        toId = node.id;
+        toLabel = node.label;
+        const srcSel = document.getElementById('panelTxSourceSelect');
+        const pkt = store.state.pockets.find(p => p.id === srcSel.value);
+        fromId = pkt ? pkt.id : srcSel.value;
+        fromLabel = pkt ? pkt.label : 'Pocket';
+      }
+    } else if (activePanelTxType === 'income') {
+      if (type === 'account') {
+        toId = node.id;
+        toLabel = node.label;
+        const srcSel = document.getElementById('panelTxSourceSelect');
+        if (srcSel.value === '__new__') {
+          const newLabel = document.getElementById('panelTxNewCategoryInput')?.value?.trim() || 'Pemasukan Lain';
+          const inc = store.getOrCreateIncomeSource(newLabel);
+          fromId = inc.id;
+          fromLabel = inc.label;
+        } else {
+          const inc = store.state.incomeSources.find(i => i.id === srcSel.value);
+          fromId = inc ? inc.id : srcSel.value;
+          fromLabel = inc ? inc.label : 'Income';
+        }
+      } else {
+        fromId = node.id;
+        fromLabel = node.label;
+        const destSel = document.getElementById('panelTxDestSelect');
+        const pkt = store.state.pockets.find(p => p.id === destSel.value);
+        toId = pkt ? pkt.id : destSel.value;
+        toLabel = pkt ? pkt.label : 'Pocket';
+      }
+    } else if (activePanelTxType === 'transfer') {
+      fromId = node.id;
+      fromLabel = node.label;
+      const destSel = document.getElementById('panelTxDestSelect');
+      const pkt = store.state.pockets.find(p => p.id === destSel.value);
+      toId = pkt ? pkt.id : destSel.value;
+      toLabel = pkt ? pkt.label : 'Pocket';
+    }
+
+    await store.addTransaction({
+      type: activePanelTxType,
+      fromId,
+      fromLabel,
+      toId,
+      toLabel,
+      amount: amt,
+      adminFee: admin,
+      shippingFee: ship,
+      date: txDate,
+      note: txNote,
+      attachments: stagedTxAttachments
+    });
+
+    showToast(`Transaksi sebesar ${i18n.formatCurrency(amt)} berhasil dicatat!`);
+
+    if (flowCanvas) flowCanvas.render();
+    renderTableLedger();
+    inspectNode(nodeId);
+  });
 
   // Hook Edit Node Save
   document.getElementById('formPanelEditNode')?.addEventListener('submit', async (e) => {
