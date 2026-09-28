@@ -16,7 +16,131 @@ let isTableDetailedMode = false; // false = simple mode, true = detailed mode
 let activePocketFilterIds = new Set();
 let scopeFilter = 'all'; // 'all' | 'filtered'
 
+const SETTINGS_KEY = 'student_pocket_settings_v05';
+
+function loadAppSettings() {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) {
+    console.warn('Failed to parse app settings from localStorage:', e);
+    return null;
+  }
+}
+
+function saveAppSettings() {
+  try {
+    const canvasMode = document.getElementById('canvasModeSelect')?.value || 'both';
+    const nodeClickAction = document.getElementById('nodeClickActionSelect')?.value || 'both';
+    const settings = {
+      currentView,
+      isInspectorOpen,
+      canvasMode,
+      scopeFilter,
+      tableSortOrder,
+      isTableDetailedMode,
+      activePocketFilterIds: Array.from(activePocketFilterIds),
+      tableFilter,
+      nodeClickAction,
+      panelWidths: getPanelWidths()
+    };
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  } catch (e) {
+    console.warn('Failed to save app settings to localStorage:', e);
+  }
+}
+
+function getPanelWidths() {
+  const canvasWrapper = document.getElementById('canvasWrapper');
+  const inspectorSidebar = document.getElementById('inspectorSidebar');
+  const tableViewContainer = document.getElementById('tableViewContainer');
+  return {
+    canvas: canvasWrapper?.style.width || null,
+    inspector: inspectorSidebar?.style.width || null,
+    table: tableViewContainer?.style.width || null
+  };
+}
+
+function applySavedPanelWidths(widths) {
+  if (!widths) return;
+  const canvasWrapper = document.getElementById('canvasWrapper');
+  const inspectorSidebar = document.getElementById('inspectorSidebar');
+  const tableViewContainer = document.getElementById('tableViewContainer');
+
+  if (widths.canvas && canvasWrapper) {
+    canvasWrapper.style.flex = 'none';
+    canvasWrapper.style.maxWidth = 'none';
+    canvasWrapper.style.width = widths.canvas;
+  }
+  if (widths.inspector && inspectorSidebar) {
+    inspectorSidebar.style.flex = 'none';
+    inspectorSidebar.style.maxWidth = 'none';
+    inspectorSidebar.style.width = widths.inspector;
+  }
+  if (widths.table && tableViewContainer) {
+    tableViewContainer.style.flex = 'none';
+    tableViewContainer.style.maxWidth = 'none';
+    tableViewContainer.style.width = widths.table;
+  }
+}
+
+// Expose for debugging and automated testing
+if (typeof window !== 'undefined') {
+  window.__appSettings = {
+    load: loadAppSettings,
+    save: saveAppSettings,
+    get: () => ({
+      currentView,
+      isInspectorOpen,
+      canvasMode: document.getElementById('canvasModeSelect')?.value || 'both',
+      scopeFilter,
+      tableSortOrder,
+      isTableDetailedMode,
+      activePocketFilterIds: Array.from(activePocketFilterIds),
+      tableFilter,
+      nodeClickAction: document.getElementById('nodeClickActionSelect')?.value || 'both',
+      panelWidths: getPanelWidths()
+    })
+  };
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+  // 0. Hydrate settings from localStorage
+  const savedSettings = loadAppSettings();
+  if (savedSettings) {
+    if (savedSettings.currentView && ['flow', 'table', 'split'].includes(savedSettings.currentView)) {
+      currentView = savedSettings.currentView;
+    }
+    if (typeof savedSettings.isInspectorOpen === 'boolean') {
+      isInspectorOpen = savedSettings.isInspectorOpen;
+    }
+    if (savedSettings.tableFilter && ['all', 'income', 'expense', 'transfer'].includes(savedSettings.tableFilter)) {
+      tableFilter = savedSettings.tableFilter;
+    }
+    if (savedSettings.tableSortOrder && ['latest', 'oldest'].includes(savedSettings.tableSortOrder)) {
+      tableSortOrder = savedSettings.tableSortOrder;
+    }
+    if (typeof savedSettings.isTableDetailedMode === 'boolean') {
+      isTableDetailedMode = savedSettings.isTableDetailedMode;
+    }
+    if (savedSettings.scopeFilter && ['all', 'filtered'].includes(savedSettings.scopeFilter)) {
+      scopeFilter = savedSettings.scopeFilter;
+    }
+    if (Array.isArray(savedSettings.activePocketFilterIds) && savedSettings.activePocketFilterIds.length > 0) {
+      const existingIds = new Set((store.state.pockets || []).map(p => p.id));
+      const valid = savedSettings.activePocketFilterIds.filter(id => existingIds.has(id));
+      if (valid.length > 0) {
+        activePocketFilterIds = new Set(valid);
+      }
+    }
+  }
+
+  // Ensure activePocketFilterIds is populated if empty
+  if (activePocketFilterIds.size === 0) {
+    (store.state.pockets || []).forEach(p => activePocketFilterIds.add(p.id));
+  }
+
   initI18n();
   initFlowCanvas();
   initUserSwitcher();
@@ -32,8 +156,22 @@ document.addEventListener('DOMContentLoaded', () => {
   initModeToggle();
   initExportMenu();
 
+  // Restore custom panel widths from localStorage if present
+  if (savedSettings?.panelWidths) {
+    applySavedPanelWidths(savedSettings.panelWidths);
+    if (flowCanvas) flowCanvas.render();
+  }
+
   // Listen to store updates
   window.addEventListener('storeUpdated', () => {
+    const existingPktIds = new Set((store.state.pockets || []).map(p => p.id));
+    for (const id of activePocketFilterIds) {
+      if (!existingPktIds.has(id)) activePocketFilterIds.delete(id);
+    }
+    if (activePocketFilterIds.size === 0) {
+      (store.state.pockets || []).forEach(p => activePocketFilterIds.add(p.id));
+    }
+    if (flowCanvas) flowCanvas.setActivePockets(activePocketFilterIds);
     updateKPIs();
     if (flowCanvas) flowCanvas.render();
     if (timelineController) timelineController.refresh();
@@ -49,11 +187,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const activeAcc = e.detail;
     showToast(`Beralih ke akun: ${activeAcc.displayName} (${activeAcc.role})`);
     renderUserSwitcher();
+    activePocketFilterIds.clear();
+    (store.state.pockets || []).forEach(p => activePocketFilterIds.add(p.id));
+    if (flowCanvas) flowCanvas.setActivePockets(activePocketFilterIds);
+    renderPocketFilterChecklist();
     updateKPIs();
     if (flowCanvas) flowCanvas.render();
     if (timelineController) timelineController.refresh();
     updateQuickAddDropdowns();
     renderTableLedger();
+    saveAppSettings();
   });
 
   // Listen to locale changes
@@ -84,6 +227,9 @@ function initFlowCanvas() {
   flowCanvas = new FlowCanvas('flowViewport', (nodeId) => {
     inspectNode(nodeId);
   });
+  if (activePocketFilterIds.size > 0) {
+    flowCanvas.setActivePockets(activePocketFilterIds);
+  }
   flowCanvas.render();
 
   // Instantiate Blender Timeline Controller
@@ -202,13 +348,16 @@ function initPocketFilterChecklist() {
       } else {
         pockets.forEach(p => activePocketFilterIds.add(p.id));
       }
+      if (flowCanvas) flowCanvas.setActivePockets(activePocketFilterIds);
       updateKPIs();
       renderPocketFilterChecklist();
       renderTableLedger();
       if (flowCanvas) flowCanvas.render();
+      saveAppSettings();
     });
   }
 
+  if (flowCanvas) flowCanvas.setActivePockets(activePocketFilterIds);
   renderPocketFilterChecklist();
 }
 
@@ -246,10 +395,12 @@ function renderPocketFilterChecklist() {
         }
         activePocketFilterIds.delete(p.id);
       }
+      if (flowCanvas) flowCanvas.setActivePockets(activePocketFilterIds);
       updateKPIs();
       renderPocketFilterChecklist();
       renderTableLedger();
       if (flowCanvas) flowCanvas.render();
+      saveAppSettings();
     });
 
     container.appendChild(item);
@@ -296,6 +447,7 @@ function initInspector() {
     btnClose.addEventListener('click', () => {
       isInspectorOpen = false;
       updateViewLayout();
+      saveAppSettings();
     });
   }
 
@@ -304,6 +456,7 @@ function initInspector() {
     btnToggleCanvas.addEventListener('click', () => {
       isInspectorOpen = !isInspectorOpen;
       updateViewLayout();
+      saveAppSettings();
     });
   }
 }
@@ -1746,13 +1899,26 @@ function initTableLedger() {
 
   const filterBtns = document.querySelectorAll('[data-table-filter]');
   filterBtns.forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('data-table-filter') === tableFilter);
     btn.addEventListener('click', () => {
       filterBtns.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       tableFilter = btn.getAttribute('data-table-filter');
       renderTableLedger();
+      saveAppSettings();
     });
   });
+
+  const nodeClickSelect = document.getElementById('nodeClickActionSelect');
+  if (nodeClickSelect) {
+    const saved = loadAppSettings();
+    if (saved?.nodeClickAction) {
+      nodeClickSelect.value = saved.nodeClickAction;
+    }
+    nodeClickSelect.addEventListener('change', () => {
+      saveAppSettings();
+    });
+  }
 
   // Real-time synchronization with Timeline playback and scrubbing
   window.addEventListener('timelineFrameChanged', (e) => {
@@ -1801,6 +1967,7 @@ function initTableLedger() {
     tableSortOrder = tableSortOrder === 'latest' ? 'oldest' : 'latest';
     updateSortUI();
     renderTableLedger();
+    saveAppSettings();
   };
 
   if (btnToggleSortOrder) {
@@ -1835,6 +2002,7 @@ function initTableDetailToggle() {
       updateUI();
       renderQuickAddRow();
       renderTableLedger();
+      saveAppSettings();
     });
   }
 
@@ -1844,11 +2012,13 @@ function initTableDetailToggle() {
 function initScopeSelect() {
   const scopeSelect = document.getElementById('scopeSelect');
   if (scopeSelect) {
+    scopeSelect.value = scopeFilter;
     scopeSelect.addEventListener('change', (e) => {
       scopeFilter = e.target.value;
       renderTableLedger();
       updateKPIs();
       if (flowCanvas) flowCanvas.render();
+      saveAppSettings();
     });
   }
 }
@@ -1935,6 +2105,7 @@ function initPanelSplitters() {
         window.removeEventListener('mousemove', onMouseMove);
         window.removeEventListener('mouseup', onMouseUp);
         if (flowCanvas) flowCanvas.render();
+        saveAppSettings();
       };
 
       window.addEventListener('mousemove', onMouseMove);
@@ -1944,6 +2115,7 @@ function initPanelSplitters() {
     // Double-click splitter to reset panel proportions
     splitter.addEventListener('dblclick', () => {
       resetPanelSizes();
+      saveAppSettings();
     });
   };
 
@@ -2039,6 +2211,7 @@ function renderTableHeader() {
       if (sortOrderIcon) sortOrderIcon.textContent = tableSortOrder === 'latest' ? '⬇️' : '⬆️';
       if (sortOrderLabel) sortOrderLabel.textContent = tableSortOrder === 'latest' ? 'Terbaru Dulu' : 'Terlama Dulu';
       renderTableLedger();
+      saveAppSettings();
     });
   }
 }
@@ -2341,16 +2514,13 @@ function renderTableLedger() {
 }
 
 // 7. View Tabs & Responsive Workspace Layout (Brief v05)
-function updateViewLayout() {
+function updateViewLayout(shouldReset = false) {
   const container = document.querySelector('.workspace-container');
-  const canvasWrapper = document.getElementById('canvasWrapper');
-  const inspectorSidebar = document.getElementById('inspectorSidebar');
-  const tableViewContainer = document.getElementById('tableViewContainer');
-
   if (!container) return;
 
-  // Reset custom widths from splitter dragging when changing perspective tabs
-  resetPanelSizes();
+  if (shouldReset) {
+    resetPanelSizes();
+  }
 
   container.classList.remove('mode-flow', 'mode-table', 'mode-split', 'inspector-hidden');
 
@@ -2373,15 +2543,19 @@ function initViewTabs() {
   const tabs = document.querySelectorAll('[data-view-tab]');
 
   tabs.forEach(tab => {
+    const tabView = tab.getAttribute('data-view-tab');
+    tab.classList.toggle('active', tabView === currentView);
+
     tab.addEventListener('click', () => {
       tabs.forEach(t => t.classList.remove('active'));
       tab.classList.add('active');
       currentView = tab.getAttribute('data-view-tab');
-      updateViewLayout();
+      updateViewLayout(true);
+      saveAppSettings();
     });
   });
 
-  updateViewLayout();
+  updateViewLayout(false);
 }
 
 function initModeToggle() {
@@ -2390,7 +2564,7 @@ function initModeToggle() {
   const btnIRL = document.getElementById('btnModeIRL');
   const btnBoth = document.getElementById('btnModeBoth');
 
-  const setModeActive = (mode) => {
+  const setModeActive = (mode, save = true) => {
     if (modeSelect && modeSelect.value !== mode) {
       modeSelect.value = mode;
     }
@@ -2403,7 +2577,13 @@ function initModeToggle() {
     if (mode === 'both' && btnBoth) btnBoth.classList.add('active');
 
     if (flowCanvas) flowCanvas.setMode(mode);
+    if (save) saveAppSettings();
   };
+
+  const saved = loadAppSettings();
+  if (saved?.canvasMode) {
+    setModeActive(saved.canvasMode, false);
+  }
 
   modeSelect?.addEventListener('change', (e) => {
     setModeActive(e.target.value);

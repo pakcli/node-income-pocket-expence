@@ -1,9 +1,10 @@
 // Test v05 Features: Master Header, Flow KPIs, Resizable Panels, Detailed/Simple Table Mode, Sticky Actions
+const storageMap = new Map();
 global.localStorage = {
-  getItem: () => null,
-  setItem: () => {},
-  removeItem: () => {},
-  clear: () => {}
+  getItem: (k) => (storageMap.has(k) ? storageMap.get(k) : null),
+  setItem: (k, v) => storageMap.set(k, String(v)),
+  removeItem: (k) => storageMap.delete(k),
+  clear: () => storageMap.clear()
 };
 global.window = {
   addEventListener: () => {},
@@ -21,13 +22,22 @@ global.document = {
     classList: { add: () => {}, remove: () => {}, toggle: () => {} },
     appendChild: () => {}
   }),
+  createElementNS: () => ({
+    className: '',
+    style: {},
+    setAttribute: () => {},
+    classList: { add: () => {}, remove: () => {}, toggle: () => {} },
+    appendChild: () => {},
+    addEventListener: () => {}
+  }),
   getElementById: (id) => ({
     id,
     style: {},
     classList: { add: () => {}, remove: () => {}, toggle: () => {} },
     addEventListener: () => {},
     innerHTML: '',
-    textContent: ''
+    textContent: '',
+    appendChild: () => {}
   }),
   querySelectorAll: () => [],
   querySelector: () => null
@@ -158,6 +168,53 @@ async function run() {
     console.log('   [PASS] Pocket checklist calculation filtering verified!');
   } else {
     console.error('   [FAIL] Pocket filtering balance calculation mismatch');
+    process.exit(1);
+  }
+
+  // 9. Test FlowCanvas Active/Disabled Pocket State
+  console.log('9. Testing FlowCanvas active pocket & dimmed state logic...');
+  const { FlowCanvas } = await import('./frontend/js/flow.js');
+  const dummyCanvas = new FlowCanvas('flowViewport', () => {});
+  dummyCanvas.setActivePockets(['pkt_bca', 'pkt_cash']);
+  
+  if (dummyCanvas.isPocketActive('pkt_bca') && 
+      dummyCanvas.isPocketActive('pkt_cash') && 
+      !dummyCanvas.isPocketActive('pkt_gopay')) {
+    console.log('   [PASS] FlowCanvas.setActivePockets & isPocketActive correctly flags active vs disabled pockets!');
+  } else {
+    console.error('   [FAIL] FlowCanvas active pocket state detection mismatch');
+    process.exit(1);
+  }
+
+  // 10. Test Webapp Settings Persistence Roundtrip in localStorage
+  console.log('10. Testing Webapp Settings Persistence Roundtrip in localStorage...');
+  const SETTINGS_KEY = 'student_pocket_settings_v05';
+  const sampleSettings = {
+    currentView: 'split',
+    isInspectorOpen: false,
+    canvasMode: 'both',
+    scopeFilter: 'filtered',
+    tableSortOrder: 'oldest',
+    isTableDetailedMode: true,
+    activePocketFilterIds: ['pkt_bca'],
+    tableFilter: 'expense',
+    nodeClickAction: 'both',
+    panelWidths: { canvas: '450px', inspector: '320px', table: '500px' }
+  };
+
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(sampleSettings));
+  const retrievedSettings = JSON.parse(localStorage.getItem(SETTINGS_KEY));
+
+  if (retrievedSettings &&
+      retrievedSettings.currentView === 'split' &&
+      retrievedSettings.isInspectorOpen === false &&
+      retrievedSettings.tableSortOrder === 'oldest' &&
+      retrievedSettings.isTableDetailedMode === true &&
+      retrievedSettings.activePocketFilterIds[0] === 'pkt_bca' &&
+      retrievedSettings.panelWidths.canvas === '450px') {
+    console.log('   [PASS] Webapp settings successfully saved and restored from localStorage!');
+  } else {
+    console.error('   [FAIL] LocalStorage settings roundtrip failed');
     process.exit(1);
   }
 

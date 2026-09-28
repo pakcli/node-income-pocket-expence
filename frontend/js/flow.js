@@ -24,8 +24,19 @@ export class FlowCanvas {
     this.isTimelinePlaying = false;
     this.timelineSpeed = 1;
     this.currentCashAnim = null;
+    this.activePocketIds = new Set();
 
     window.addEventListener('resize', () => this.render());
+  }
+
+  setActivePockets(activeIds) {
+    this.activePocketIds = activeIds instanceof Set ? activeIds : new Set(activeIds || []);
+    this.render();
+  }
+
+  isPocketActive(pocketId) {
+    if (!this.activePocketIds || this.activePocketIds.size === 0) return true;
+    return this.activePocketIds.has(pocketId);
   }
 
   loadSortOrder() {
@@ -330,6 +341,8 @@ export class FlowCanvas {
       outX: col2X + nodeWidth,
       outY: centerY + 50
     };
+    const activePockets = pockets.filter(p => this.isPocketActive(p.id));
+    const activePocketBalance = activePockets.reduce((sum, p) => sum + (p.balance || 0), 0);
     this.createBlenderTotalNode(this.nodesGroup, {
       id: 'total-pocket',
       x: col2X,
@@ -340,9 +353,9 @@ export class FlowCanvas {
       theme: 'pocket',
       headerColor: '#1e40af',
       badge: 'TOTAL',
-      currentValue: i18n.formatCurrency(totalBalance),
+      currentValue: i18n.formatCurrency(activePocketBalance),
       valueLabel: 'Saldo Likuiditas Kas',
-      subtitle: `${pockets.length} Kantong & Rekening`,
+      subtitle: `${activePockets.length} / ${pockets.length} Kantong Aktif`,
       inputs: [{ label: 'Inflow', yOffset: 50, color: '#38bdf8' }],
       outputs: [{ label: 'Outflow ▶', yOffset: 50, color: '#f87171' }],
       selected: this.selectedNodeId === 'total-pocket'
@@ -479,6 +492,8 @@ export class FlowCanvas {
       outX: col2X + nodeWidth,
       outY: topY + 50
     };
+    const activePockets = pockets.filter(p => this.isPocketActive(p.id));
+    const activePocketBalance = activePockets.reduce((sum, p) => sum + (p.balance || 0), 0);
     this.createBlenderTotalNode(this.nodesGroup, {
       id: 'total-pocket',
       x: col2X,
@@ -489,9 +504,9 @@ export class FlowCanvas {
       theme: 'pocket',
       headerColor: '#1e40af',
       badge: 'TOTAL',
-      currentValue: i18n.formatCurrency(totalBalance),
+      currentValue: i18n.formatCurrency(activePocketBalance),
       valueLabel: 'Saldo Likuiditas Kas',
-      subtitle: `${pockets.length} Kantong Aktif`,
+      subtitle: `${activePockets.length} / ${pockets.length} Kantong Aktif`,
       inputs: [{ label: 'Inflow', yOffset: 50, color: '#38bdf8' }],
       outputs: [{ label: 'Outflow ▶', yOffset: 50, color: '#f87171' }],
       selected: this.selectedNodeId === 'total-pocket'
@@ -555,6 +570,7 @@ export class FlowCanvas {
     pockets.forEach((pkt, i) => {
       const x = col2X;
       const y = pktY[i];
+      const isPktActive = this.isPocketActive(pkt.id);
       this.nodePositions[pkt.id] = {
         id: pkt.id,
         columnKey: 'pocket',
@@ -583,7 +599,8 @@ export class FlowCanvas {
           { label: 'Belanja Out ▶', yOffset: 74, color: '#f87171' },
           { label: 'Transfer ⇄', yOffset: 90, color: '#c084fc' }
         ],
-        selected: this.selectedNodeId === pkt.id
+        selected: this.selectedNodeId === pkt.id,
+        isDimmed: !isPktActive
       });
     });
 
@@ -708,6 +725,7 @@ export class FlowCanvas {
     pockets.forEach((pkt, i) => {
       const x = col2X;
       const y = pktY[i];
+      const isPktActive = this.isPocketActive(pkt.id);
       this.nodePositions[pkt.id] = {
         id: pkt.id,
         columnKey: 'pocket',
@@ -736,7 +754,8 @@ export class FlowCanvas {
           { label: 'Belanja Out ▶', yOffset: 74, color: '#f87171' },
           { label: 'Transfer ⇄', yOffset: 90, color: '#c084fc' }
         ],
-        selected: this.selectedNodeId === pkt.id
+        selected: this.selectedNodeId === pkt.id,
+        isDimmed: !isPktActive
       });
     });
 
@@ -930,6 +949,11 @@ export class FlowCanvas {
           const isNodeSelected = this.selectedNodeId === tx.fromId || this.selectedNodeId === tx.toId;
           const isHighlighted = isTimelineActive || isNodeSelected;
 
+          const isFromPocket = store.state.pockets.some(p => p.id === tx.fromId);
+          const isToPocket = store.state.pockets.some(p => p.id === tx.toId);
+          const isEdgeDisabled = (isFromPocket && !this.isPocketActive(tx.fromId)) ||
+                                 (isToPocket && !this.isPocketActive(tx.toId));
+
           if (tx.type === 'transfer') {
             startX = fromSocket.transferOutX || fromSocket.outX;
             startY = fromSocket.transferOutY || fromSocket.outY;
@@ -949,7 +973,8 @@ export class FlowCanvas {
                 amount: tx.amount,
                 type: tx.type,
                 edgeId: `tx-${tx.id}`
-              }
+              },
+              isEdgeDisabled
             );
           } else {
             startX = fromSocket.outX;
@@ -972,7 +997,8 @@ export class FlowCanvas {
                 amount: tx.amount,
                 type: tx.type,
                 edgeId: `tx-${tx.id}`
-              }
+              },
+              isEdgeDisabled
             );
           }
         }
@@ -1145,9 +1171,9 @@ export class FlowCanvas {
     parent.appendChild(group);
   }
 
-  createBlenderNode(parent, { id, columnKey, slotIndex, x, y, width, height, title, theme, headerColor, badge, currentValue, valueLabel, inputs, outputs, selected }) {
+  createBlenderNode(parent, { id, columnKey, slotIndex, x, y, width, height, title, theme, headerColor, badge, currentValue, valueLabel, inputs, outputs, selected, isDimmed = false }) {
     const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-    group.setAttribute('class', `node-blender node-${theme} ${selected ? 'node-selected' : ''}`);
+    group.setAttribute('class', `node-blender node-${theme} ${selected ? 'node-selected' : ''} ${isDimmed ? 'node-dimmed-disabled' : ''}`);
     group.setAttribute('id', `node-el-${id}`);
     group.setAttribute('transform', `translate(0, 0)`);
     group.style.cursor = 'grab';
@@ -1585,7 +1611,7 @@ export class FlowCanvas {
     nodeGroup.addEventListener('pointerdown', onPointerDown);
   }
 
-  drawBlenderBezierEdge(parent, x1, y1, x2, y2, color, marker, isHighlighted, isTimelineActive = false, txInfo = null) {
+  drawBlenderBezierEdge(parent, x1, y1, x2, y2, color, marker, isHighlighted, isTimelineActive = false, txInfo = null, isEdgeDisabled = false) {
     const dx = Math.abs(x2 - x1) * 0.55;
     const cp1x = x1 + dx;
     const cp1y = y1;
@@ -1596,14 +1622,16 @@ export class FlowCanvas {
     const d = `M ${x1} ${y1} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${x2} ${y2}`;
     path.setAttribute('d', d);
     path.setAttribute('fill', 'none');
-    path.setAttribute('stroke', color);
-    path.setAttribute('stroke-width', isTimelineActive ? '4' : (isHighlighted ? '3.5' : '2.2'));
-    path.setAttribute('stroke-opacity', (isTimelineActive || isHighlighted) ? '1' : '0.65');
+    path.setAttribute('stroke', isEdgeDisabled ? '#64748b' : color);
+    path.setAttribute('stroke-width', isEdgeDisabled ? '1.5' : (isTimelineActive ? '4' : (isHighlighted ? '3.5' : '2.2')));
+    path.setAttribute('stroke-opacity', isEdgeDisabled ? '0.1' : ((isTimelineActive || isHighlighted) ? '1' : '0.65'));
 
     const pathId = `flow-edge-${txInfo?.edgeId || Math.random().toString(36).substring(2, 9)}`;
     path.setAttribute('id', pathId);
 
-    if (isTimelineActive) {
+    if (isEdgeDisabled) {
+      path.classList.add('edge-dimmed-disabled');
+    } else if (isTimelineActive) {
       path.classList.add('edge-timeline-active');
       if (!this.isTimelinePlaying) {
         path.classList.add('edge-timeline-paused');
@@ -1612,16 +1640,16 @@ export class FlowCanvas {
       path.setAttribute('stroke-dasharray', '8,4');
       path.classList.add('edge-animated');
     }
-    path.setAttribute('marker-end', marker);
+    path.setAttribute('marker-end', isEdgeDisabled ? 'none' : marker);
     parent.appendChild(path);
 
-    // Draw the cash animation value flying from left to right
-    if (txInfo && txInfo.amount > 0) {
+    // Draw the cash animation value flying from left to right only for active edges
+    if (!isEdgeDisabled && txInfo && txInfo.amount > 0) {
       this.drawCashFlowCapsule(parent, path, txInfo, isTimelineActive, isHighlighted);
     }
   }
 
-  drawBlenderArcEdge(parent, x1, y1, x2, y2, color, marker, isHighlighted, isTimelineActive = false, txInfo = null) {
+  drawBlenderArcEdge(parent, x1, y1, x2, y2, color, marker, isHighlighted, isTimelineActive = false, txInfo = null, isEdgeDisabled = false) {
     const offset = 48;
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     const midX = Math.max(x1, x2) + offset;
@@ -1629,14 +1657,16 @@ export class FlowCanvas {
     const d = `M ${x1} ${y1} Q ${midX} ${midY}, ${x2} ${y2}`;
     path.setAttribute('d', d);
     path.setAttribute('fill', 'none');
-    path.setAttribute('stroke', color);
-    path.setAttribute('stroke-width', isTimelineActive ? '4' : (isHighlighted ? '3' : '2'));
-    path.setAttribute('stroke-opacity', (isTimelineActive || isHighlighted) ? '1' : '0.7');
+    path.setAttribute('stroke', isEdgeDisabled ? '#64748b' : color);
+    path.setAttribute('stroke-width', isEdgeDisabled ? '1.5' : (isTimelineActive ? '4' : (isHighlighted ? '3' : '2')));
+    path.setAttribute('stroke-opacity', isEdgeDisabled ? '0.1' : ((isTimelineActive || isHighlighted) ? '1' : '0.7'));
 
     const pathId = `flow-edge-${txInfo?.edgeId || Math.random().toString(36).substring(2, 9)}`;
     path.setAttribute('id', pathId);
 
-    if (isTimelineActive) {
+    if (isEdgeDisabled) {
+      path.classList.add('edge-dimmed-disabled');
+    } else if (isTimelineActive) {
       path.classList.add('edge-timeline-active');
       if (!this.isTimelinePlaying) {
         path.classList.add('edge-timeline-paused');
@@ -1644,11 +1674,11 @@ export class FlowCanvas {
     } else {
       path.setAttribute('stroke-dasharray', '6,3');
     }
-    path.setAttribute('marker-end', marker);
+    path.setAttribute('marker-end', isEdgeDisabled ? 'none' : marker);
     parent.appendChild(path);
 
-    // Draw the cash animation value flying along the arc
-    if (txInfo && txInfo.amount > 0) {
+    // Draw the cash animation value flying along the arc only for active edges
+    if (!isEdgeDisabled && txInfo && txInfo.amount > 0) {
       this.drawCashFlowCapsule(parent, path, txInfo, isTimelineActive, isHighlighted);
     }
   }
