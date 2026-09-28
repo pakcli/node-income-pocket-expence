@@ -137,6 +137,35 @@ export class FlowCanvas {
     activeEdges?.forEach(e => e.classList.remove('edge-timeline-paused'));
   }
 
+  playCashAnimationForTx(tx) {
+    if (!tx) return;
+    if (this.rowAnimRafId) {
+      cancelAnimationFrame(this.rowAnimRafId);
+      this.rowAnimRafId = null;
+    }
+
+    // Immediately highlight the edge and nodes with golden glowing styling
+    this.highlightTimelineTx(tx.id, true, 1, 0);
+
+    const startTime = performance.now();
+    const duration = 1800; // 1.8s smooth journey from output socket to input socket
+
+    const step = (now) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(1, elapsed / duration);
+      this.setCashProgress(progress);
+
+      if (progress < 1) {
+        this.rowAnimRafId = requestAnimationFrame(step);
+      } else {
+        this.rowAnimRafId = null;
+        this.pauseCashAnimation();
+      }
+    };
+
+    this.rowAnimRafId = requestAnimationFrame(step);
+  }
+
   getSortedItems(items, columnKey) {
     const order = this.sortOrder[columnKey] || [];
     const sorted = [...items].sort((a, b) => {

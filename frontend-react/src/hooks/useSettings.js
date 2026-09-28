@@ -12,7 +12,8 @@ const defaultSettings = {
   activePocketFilterIds: [],
   tableFilter: 'all', // 'all' | 'income' | 'expense' | 'transfer'
   nodeClickAction: 'both', // 'both' | 'table' | 'inspector'
-  panelWidths: { canvas: null, inspector: null, table: null }
+  panelWidths: { canvas: null, inspector: null, table: null },
+  theme: 'dark' // 'dark' | 'light' (Blender theme)
 };
 
 export function useSettings(allPocketIds = []) {

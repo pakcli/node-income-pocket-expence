@@ -25,6 +25,14 @@ export function WorkspaceLayout({
   onEditTransaction,
   panelWidths,
   onPanelWidthsChange,
+  dateRange,
+  onDateRangeChange,
+  presetView,
+  onPresetViewChange,
+  customMinBalance,
+  onCustomMinBalanceChange,
+  selectedIncomeIds,
+  onSelectedIncomeIdsChange,
   showToast
 }) {
   const containerRef = useRef(null);
@@ -108,6 +116,16 @@ export function WorkspaceLayout({
             onSelectNode(id);
           }}
           onToggleInspector={onToggleInspector}
+          dateRange={dateRange}
+          onDateRangeChange={onDateRangeChange}
+          presetView={presetView}
+          onPresetViewChange={onPresetViewChange}
+          customMinBalance={customMinBalance}
+          onCustomMinBalanceChange={onCustomMinBalanceChange}
+          selectedIncomeIds={selectedIncomeIds}
+          onSelectedIncomeIdsChange={onSelectedIncomeIdsChange}
+          scopeFilter={scopeFilter}
+          showToast={showToast}
         />
       </div>
 
@@ -169,6 +187,10 @@ export function WorkspaceLayout({
           onNodeClickActionChange={onNodeClickActionChange}
           onSelectNode={onSelectNode}
           onEditTransaction={onEditTransaction}
+          dateRange={dateRange}
+          presetView={presetView}
+          customMinBalance={customMinBalance}
+          selectedIncomeIds={selectedIncomeIds}
           showToast={showToast}
         />
       </div>

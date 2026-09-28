@@ -15,12 +15,17 @@ export function TableLedger({
   onNodeClickActionChange,
   onSelectNode,
   onEditTransaction,
+  dateRange,
+  presetView,
+  customMinBalance,
+  selectedIncomeIds,
   showToast
 }) {
   const { pockets, incomeSources, expenseCategories, transactions, addTransaction, deleteTransaction } = useStore();
   const { formatCurrency, formatDate, t } = useI18n();
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedTxId, setSelectedTxId] = useState(null);
 
   // Quick Add Row local form state
   const [qaDate, setQaDate] = useState(() => new Date().toISOString().split('T')[0]);
@@ -87,6 +92,25 @@ export function TableLedger({
       );
     }
 
+    // Filter by Date Range
+    if (dateRange?.start) {
+      list = list.filter(t => t.date >= dateRange.start);
+    }
+    if (dateRange?.end) {
+      list = list.filter(t => t.date <= dateRange.end);
+    }
+
+    // Filter by Balance if preset is balance
+    if (presetView === 'balance' && customMinBalance > 0) {
+      list = list.filter(t => t.amount >= customMinBalance);
+    }
+
+    // Filter by Income Sources if preset is income
+    if (presetView === 'income' && selectedIncomeIds?.length > 0) {
+      const incSet = new Set(selectedIncomeIds);
+      list = list.filter(t => t.type === 'income' && incSet.has(t.fromId));
+    }
+
     // Sort order: Latest first (default) vs Oldest first
     if (sortOrder === 'oldest') {
       list.sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -95,7 +119,7 @@ export function TableLedger({
     }
 
     return list;
-  }, [transactions, tableFilter, scopeFilter, activePocketFilterIds, searchQuery, sortOrder]);
+  }, [transactions, tableFilter, scopeFilter, activePocketFilterIds, searchQuery, sortOrder, dateRange, presetView, customMinBalance, selectedIncomeIds]);
 
   const handleQuickAddSubmit = (e) => {
     e.preventDefault();
@@ -486,7 +510,12 @@ export function TableLedger({
                   <tr
                     key={tx.id}
                     data-tx-id={tx.id}
+                    className={selectedTxId === tx.id ? 'row-active-frame' : ''}
                     onClick={() => {
+                      setSelectedTxId(tx.id);
+                      if (typeof window !== 'undefined' && window.timelineController) {
+                        window.timelineController.jumpToTx(tx.id, true);
+                      }
                       const targetId = tx.type === 'expense' ? tx.toId : (tx.type === 'income' ? tx.fromId : tx.toId);
                       onSelectNode(targetId);
                     }}
@@ -495,7 +524,7 @@ export function TableLedger({
                     <td className="timeline-rail-cell">
                       <div className={`timeline-rail-wrapper ${isFirstRow ? 'is-first' : ''} ${isLastRow ? 'is-last' : ''}`}>
                         <div className="timeline-rail-line-top"></div>
-                        <div className="timeline-rail-dot">
+                        <div className={`timeline-rail-dot ${selectedTxId === tx.id ? 'active' : ''}`}>
                           <div className="timeline-rail-dot-core"></div>
                         </div>
                         <div className="timeline-rail-line-bottom"></div>

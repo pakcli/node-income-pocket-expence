@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useStore } from './hooks/useStore.js';
 import { useSettings } from './hooks/useSettings.js';
 import { MasterHeader } from './components/Header/MasterHeader.jsx';
@@ -17,6 +17,19 @@ export default function App() {
 
   const pocketIds = useMemo(() => pockets.map(p => p.id), [pockets]);
   const { settings, updateSetting, updateSettings } = useSettings(pocketIds);
+
+  // Timeline current view range & presets state
+  const [dateRange, setDateRange] = useState({ start: '', end: '' });
+  const [presetView, setPresetView] = useState('all');
+  const [customMinBalance, setCustomMinBalance] = useState(0);
+  const [selectedIncomeIds, setSelectedIncomeIds] = useState([]);
+
+  // Blender Theme (Dark / Light) sync to body
+  useEffect(() => {
+    const activeTheme = settings.theme || 'dark';
+    document.body.classList.remove('theme-blender-dark', 'theme-blender-light');
+    document.body.classList.add(activeTheme === 'light' ? 'theme-blender-light' : 'theme-blender-dark');
+  }, [settings.theme]);
 
   // Modal control
   const [activeModal, setActiveModal] = useState(null); // 'income' | 'expense' | 'transfer' | 'pocket' | 'addAccount' | null
@@ -55,6 +68,8 @@ export default function App() {
         scopeFilter={settings.scopeFilter}
         onScopeFilterChange={(scope) => updateSetting('scopeFilter', scope)}
         onOpenModal={(modalName) => setActiveModal(modalName)}
+        theme={settings.theme || 'dark'}
+        onToggleTheme={() => updateSetting('theme', settings.theme === 'light' ? 'dark' : 'light')}
         showToast={showToast}
       />
 
@@ -87,6 +102,14 @@ export default function App() {
         onEditTransaction={(tx) => setEditingTransaction(tx)}
         panelWidths={settings.panelWidths}
         onPanelWidthsChange={(widths) => updateSetting('panelWidths', widths)}
+        dateRange={dateRange}
+        onDateRangeChange={setDateRange}
+        presetView={presetView}
+        onPresetViewChange={setPresetView}
+        customMinBalance={customMinBalance}
+        onCustomMinBalanceChange={setCustomMinBalance}
+        selectedIncomeIds={selectedIncomeIds}
+        onSelectedIncomeIdsChange={setSelectedIncomeIds}
         showToast={showToast}
       />
 

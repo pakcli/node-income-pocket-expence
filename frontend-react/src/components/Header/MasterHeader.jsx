@@ -10,6 +10,8 @@ export function MasterHeader({
   scopeFilter,
   onScopeFilterChange,
   onOpenModal,
+  theme = 'dark',
+  onToggleTheme,
   showToast
 }) {
   const { activeAccount, accounts, switchAccount } = useAccounts();
@@ -57,7 +59,7 @@ export function MasterHeader({
         </div>
       </div>
 
-      {/* 2. Quick Add Data Action Buttons */}
+      {/* 2. Quick Add Data Action Buttons (Thicker, 1 Symbol + 1 Word) */}
       <div className="header-data-controls">
         <button
           type="button"
@@ -65,8 +67,8 @@ export function MasterHeader({
           title="Catat Pemasukan Baru"
           onClick={() => onOpenModal('income')}
         >
-          <span className="btn-icon">💰</span>
-          <span>+ Masuk</span>
+          <span className="btn-icon">+</span>
+          <span>Pemasukan</span>
         </button>
         <button
           type="button"
@@ -74,8 +76,8 @@ export function MasterHeader({
           title="Catat Pengeluaran Baru"
           onClick={() => onOpenModal('expense')}
         >
-          <span className="btn-icon">🏷️</span>
-          <span>- Keluar</span>
+          <span className="btn-icon">−</span>
+          <span>Pengeluaran</span>
         </button>
         <button
           type="button"
@@ -93,7 +95,7 @@ export function MasterHeader({
           onClick={() => onOpenModal('pocket')}
         >
           <span className="btn-icon">💳</span>
-          <span>+ Kantong</span>
+          <span>Kantong</span>
         </button>
       </div>
 
@@ -185,6 +187,16 @@ export function MasterHeader({
             </div>
           )}
         </div>
+
+        {/* Blender Theme Toggle (Dark / Light) */}
+        <button
+          type="button"
+          className="btn-header-util btn-theme-toggle"
+          onClick={onToggleTheme}
+          title={theme === 'dark' ? 'Ganti ke Blender Light Mode' : 'Ganti ke Blender Dark Mode'}
+        >
+          {theme === 'dark' ? '🌙 Dark' : '☀️ Light'}
+        </button>
 
         {/* Multi-Account Switcher */}
         <div className="user-switcher-container" ref={accountRef}>

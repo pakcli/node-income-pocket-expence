@@ -32,3 +32,5 @@ Thumbs.db
 dist/
 build/
 .temp/
+frontend-vanilla/
+frontend-react/dist/

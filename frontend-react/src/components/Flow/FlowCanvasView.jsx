@@ -1,12 +1,23 @@
 import React, { useEffect, useRef } from 'react';
 import { FlowCanvas } from '../../services/flow.js';
 import { TimelineController } from '../../services/timeline.js';
+import { TimelineRangeControls } from './TimelineRangeControls.jsx';
 
 export function FlowCanvasView({
   canvasMode,
   activePocketFilterIds,
   onNodeSelect,
-  onToggleInspector
+  onToggleInspector,
+  dateRange,
+  onDateRangeChange,
+  presetView,
+  onPresetViewChange,
+  customMinBalance,
+  onCustomMinBalanceChange,
+  selectedIncomeIds,
+  onSelectedIncomeIdsChange,
+  scopeFilter,
+  showToast
 }) {
   const flowCanvasRef = useRef(null);
   const timelineControllerRef = useRef(null);
@@ -136,6 +147,21 @@ export function FlowCanvasView({
           <button id="btnTimelineSpeed" className="timeline-btn-speed" title="Kecepatan Animasi">1x</button>
         </div>
       </div>
+
+      {/* Timeline View Range & Scoped Presets Bar (Below Timeline) */}
+      <TimelineRangeControls
+        dateRange={dateRange}
+        onDateRangeChange={onDateRangeChange}
+        presetView={presetView}
+        onPresetViewChange={onPresetViewChange}
+        customMinBalance={customMinBalance}
+        onCustomMinBalanceChange={onCustomMinBalanceChange}
+        selectedIncomeIds={selectedIncomeIds}
+        onSelectedIncomeIdsChange={onSelectedIncomeIdsChange}
+        scopeFilter={scopeFilter}
+        activePocketFilterIds={activePocketFilterIds}
+        showToast={showToast}
+      />
     </section>
   );
 }

@@ -30,26 +30,15 @@ async function runTests() {
   const server = app.listen(TEST_PORT);
 
   try {
-    // 1. Test Static Frontend Serving
-    console.log('\n--- Test 1: Static Frontend Delivery ---');
+    // 1. Test Static React Frontend Serving at Root
+    console.log('\n--- Test 1: React Frontend Delivery at / ---');
     const resHome = await request('/');
     console.log(`[PASS] GET / -> HTTP ${resHome.status} (${resHome.body.length} bytes)`);
     if (!resHome.body.includes('Student Pocket Manager')) {
       throw new Error('Frontend index.html did not contain expected title.');
     }
-
-    const resCSS = await request('/css/styles.css');
-    console.log(`[PASS] GET /css/styles.css -> HTTP ${resCSS.status} (${resCSS.body.length} bytes)`);
-
-    const resJS = await request('/js/app.js');
-    console.log(`[PASS] GET /js/app.js -> HTTP ${resJS.status} (${resJS.body.length} bytes)`);
-
-    // 1b. Test React Frontend Delivery
-    console.log('\n--- Test 1b: React Frontend Delivery ---');
-    const resReact = await request('/react/');
-    console.log(`[PASS] GET /react/ -> HTTP ${resReact.status} (${resReact.body.length} bytes)`);
-    if (!resReact.body.includes('React v05')) {
-      throw new Error('React frontend did not return expected title.');
+    if (!resHome.body.includes('React v06')) {
+      throw new Error('Frontend index.html did not return React v06 title.');
     }
 
     // 2. Test API Health Check

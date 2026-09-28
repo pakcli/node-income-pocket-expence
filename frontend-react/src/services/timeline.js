@@ -404,6 +404,22 @@ export class TimelineController {
     this.seekProgress(pinProgress, pause);
   }
 
+  jumpToTx(txId, playAnimation = true) {
+    if (!this.transactions || this.transactions.length === 0) {
+      this.refresh();
+    }
+    const idx = this.transactions.findIndex(t => t.id === txId);
+    if (idx !== -1) {
+      this.jumpTo(idx, true);
+      if (playAnimation && this.flowCanvas) {
+        const tx = this.transactions[idx];
+        if (typeof this.flowCanvas.playCashAnimationForTx === 'function') {
+          this.flowCanvas.playCashAnimationForTx(tx);
+        }
+      }
+    }
+  }
+
   setLiveAll() {
     this.pause();
     this.isLive = true;
