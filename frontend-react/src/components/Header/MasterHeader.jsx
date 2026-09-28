@@ -166,26 +166,16 @@ export function MasterHeader({
           🌐 <span style={{ textTransform: 'uppercase' }}>{locale}</span>
         </button>
 
-        {/* Dual Export Menu */}
+        {/* Export Data Menu & Modal Opener */}
         <div className="export-menu-wrapper" ref={exportRef}>
           <button
             type="button"
             className="btn-header-util"
-            onClick={() => setIsExportOpen(!isExportOpen)}
-            title="Export Data Keuangan"
+            onClick={() => onOpenModal('exportData')}
+            title="Buka Tabel Opsi Export Data Keuangan (CSV, .db SQLite, SQL)"
           >
-            📥 <span>Export</span> ▼
+            📥 <span>Export</span> ▾
           </button>
-          {isExportOpen && (
-            <div className="export-dropdown-menu show">
-              <button type="button" className="export-dropdown-item" onClick={() => handleExport('csv')}>
-                📊 Export CSV (Excel / Spreadsheet)
-              </button>
-              <button type="button" className="export-dropdown-item" onClick={() => handleExport('db')}>
-                🗄️ Export Database (.db SQLite)
-              </button>
-            </div>
-          )}
         </div>
 
         {/* Blender Theme Toggle (Dark / Light) */}

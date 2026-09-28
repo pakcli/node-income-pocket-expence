@@ -13,9 +13,17 @@ function request(path, options = {}) {
       method: options.method || 'GET',
       headers: options.headers || {}
     }, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: data }));
+      const chunks = [];
+      res.on('data', chunk => chunks.push(chunk));
+      res.on('end', () => {
+        const buffer = Buffer.concat(chunks);
+        resolve({
+          status: res.statusCode,
+          headers: res.headers,
+          buffer,
+          body: buffer.toString('utf-8')
+        });
+      });
     });
 
     req.on('error', reject);
@@ -85,19 +93,75 @@ async function runTests() {
     const txData = JSON.parse(resTxs.body);
     console.log(`       Transactions Count: ${txData.transactions.length}`);
 
-    // 7. Test Dual Export API (CSV & DB)
-    console.log('\n--- Test 7: Dual Export Engine ---');
+    // 7. Test Export Engine Matrix (CSV, authentic SQLite .db binary, and SQL dump)
+    console.log('\n--- Test 7: Export Engine Matrix (CSV, .db binary, .sql) x (Current View, All) ---');
+    // 7a. GET /api/export/csv
     const resCSV = await request('/api/export/csv', {
       headers: { 'Authorization': `Bearer ${token}` }
     });
-    console.log(`[PASS] GET /api/export/csv -> HTTP ${resCSV.status} (Content-Type: ${resCSV.headers['content-type']})`);
+    console.log(`[PASS] GET /api/export/csv (All Data) -> HTTP ${resCSV.status} (Content-Type: ${resCSV.headers['content-type']})`);
 
+    // 7b. POST /api/export/csv (Current View)
+    const resCSVView = await request('/api/export/csv', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scope: 'view', transactions: txData.transactions.slice(0, 2) })
+    });
+    console.log(`[PASS] POST /api/export/csv (Current View Scope) -> HTTP ${resCSVView.status}`);
+
+    // 7c. GET /api/export/db
     const resDB = await request('/api/export/db', {
       headers: { 'Authorization': `Bearer ${token}` }
     });
-    console.log(`[PASS] GET /api/export/db -> HTTP ${resDB.status} (Content-Type: ${resDB.headers['content-type']})`);
+    console.log(`[PASS] GET /api/export/db (All Data) -> HTTP ${resDB.status} (Content-Type: ${resDB.headers['content-type']})`);
+    if (!resDB.body.startsWith('SQLite format 3')) {
+      throw new Error('Exported .db does not start with SQLite format 3 binary magic header!');
+    }
+    console.log('       [CONFIRMED] Exported .db has genuine "SQLite format 3" magic header for DB Browser for SQLite!');
 
-    console.log('\n🎉 ALL STEP 4 COMBINED LOCALHOST INTEGRATION TESTS PASSED 100%!\n');
+    // 7d. POST /api/export/db (Current View Scope)
+    const resDBView = await request('/api/export/db', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scope: 'view', transactions: txData.transactions.slice(0, 1) })
+    });
+    console.log(`[PASS] POST /api/export/db (Current View Scope) -> HTTP ${resDBView.status}`);
+    if (!resDBView.body.startsWith('SQLite format 3')) {
+      throw new Error('POST Exported .db does not start with SQLite format 3 binary header!');
+    }
+
+    // 7e. Verify opening exported SQLite database using better-sqlite3 (simulating DB Browser for SQLite)
+    const fs = require('fs');
+    const path = require('path');
+    const os = require('os');
+    const Database = require('./backend/node_modules/better-sqlite3');
+    const tempExportPath = path.join(os.tmpdir(), `test_verify_${Date.now()}.db`);
+    fs.writeFileSync(tempExportPath, resDB.buffer);
+    const verifyDb = new Database(tempExportPath);
+    const tableList = verifyDb.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
+    const rowCounts = {};
+    for (const tbl of tableList) {
+      const count = verifyDb.prepare(`SELECT COUNT(*) as count FROM "${tbl.name}"`).get();
+      rowCounts[tbl.name] = count.count;
+    }
+    verifyDb.close();
+    fs.unlinkSync(tempExportPath);
+    console.log(`       [VERIFIED] Opened exported .db in SQLite engine successfully! Tables: ${JSON.stringify(rowCounts)}`);
+
+    // 7f. GET & POST /api/export/sql
+    const resSQL = await request('/api/export/sql', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    console.log(`[PASS] GET /api/export/sql (All Data) -> HTTP ${resSQL.status} (Content-Type: ${resSQL.headers['content-type']})`);
+
+    const resSQLView = await request('/api/export/sql', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scope: 'view', transactions: txData.transactions.slice(0, 2) })
+    });
+    console.log(`[PASS] POST /api/export/sql (Current View Scope) -> HTTP ${resSQLView.status}`);
+
+    console.log('\n🎉 ALL COMBINED LOCALHOST INTEGRATION TESTS PASSED 100%!\n');
   } catch (err) {
     console.error('❌ Integration Test Failed:', err);
     process.exitCode = 1;

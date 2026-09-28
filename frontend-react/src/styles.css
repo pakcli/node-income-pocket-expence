@@ -2742,6 +2742,179 @@ body.theme-blender-light .blender-timeline-panel {
   border-top-color: rgba(0, 0, 0, 0.12) !important;
 }
 
+/* ==========================================================================
+   Export Data Options Matrix Table Modal (Brief v06)
+   ========================================================================== */
+.modal-card-export {
+  max-width: 740px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.7);
+  overflow: hidden;
+}
+
+.export-matrix-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bg-primary);
+  font-size: 11px;
+}
+
+.export-matrix-table thead th {
+  background: var(--bg-surface-elevated);
+  padding: 10px 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-color);
+  text-align: left;
+}
+
+.export-matrix-table tbody td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border-color);
+  vertical-align: middle;
+}
+
+.export-matrix-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.format-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.format-badge {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 3px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+  font-family: 'JetBrains Mono', monospace;
+  flex-shrink: 0;
+}
+
+.format-badge.format-csv {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.format-badge.format-db {
+  background: rgba(59, 130, 246, 0.25);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.5);
+}
+
+.format-badge.format-sql {
+  background: rgba(168, 85, 247, 0.2);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.4);
+}
+
+.format-name {
+  font-weight: 700;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.format-sub {
+  font-size: 9.5px;
+  color: var(--text-muted);
+}
+
+.highlight-db-row {
+  background: rgba(59, 130, 246, 0.05);
+}
+
+.btn-export-matrix {
+  width: 100%;
+  padding: 7px 12px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+  font-family: inherit;
+  user-select: none;
+}
+
+.btn-matrix-view {
+  background: #14385c;
+  border: 1px solid #38bdf8;
+  color: #e0f2fe;
+}
+.btn-matrix-view:hover {
+  background: #0284c7;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.btn-matrix-all {
+  background: #252d38;
+  border: 1px solid var(--border-color);
+  color: #cbd5e1;
+}
+.btn-matrix-all:hover {
+  background: #3a4554;
+  color: #ffffff;
+  border-color: #64748b;
+  transform: translateY(-1px);
+}
+
+.btn-matrix-db {
+  border-color: #3b82f6;
+  font-weight: 800;
+}
+.btn-matrix-db.btn-matrix-view {
+  background: #1e40af;
+  border-color: #60a5fa;
+  color: #ffffff;
+}
+.btn-matrix-db.btn-matrix-view:hover {
+  background: #2563eb;
+}
+
+.matrix-subtext {
+  font-size: 9.5px;
+  color: var(--text-muted);
+  text-align: center;
+  margin-top: 4px;
+}
+
+.export-modal-footer-notice {
+  margin: 0 20px 16px 20px;
+  padding: 10px 14px;
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 6px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 10.5px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.export-modal-footer-notice code {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-family: 'JetBrains Mono', monospace;
+  color: #93c5fd;
+}
+
+
 
 
 

@@ -11,6 +11,7 @@ import { ModalTransfer } from './components/Modals/ModalTransfer.jsx';
 import { ModalAddPocket } from './components/Modals/ModalAddPocket.jsx';
 import { ModalEditTransaction } from './components/Modals/ModalEditTransaction.jsx';
 import { ModalAddAccount } from './components/Modals/ModalAddAccount.jsx';
+import { ModalExportData } from './components/Modals/ModalExportData.jsx';
 
 export default function App() {
   const { pockets } = useStore();
@@ -143,6 +144,17 @@ export default function App() {
         transaction={editingTransaction}
         isOpen={!!editingTransaction}
         onClose={() => setEditingTransaction(null)}
+        showToast={showToast}
+      />
+      <ModalExportData
+        isOpen={activeModal === 'exportData'}
+        onClose={() => setActiveModal(null)}
+        dateRange={dateRange}
+        presetView={presetView}
+        customMinBalance={customMinBalance}
+        selectedIncomeIds={selectedIncomeIds}
+        scopeFilter={settings.scopeFilter}
+        activePocketFilterIds={settings.activePocketFilterIds}
         showToast={showToast}
       />
     </div>
