@@ -31,8 +31,8 @@ function getExportData(userId, reqQuery = {}, reqBody = {}) {
            t.to_node_id, n_to.label as to_label,
            t.note
     FROM transactions t
-    JOIN nodes n_from ON n_from.id = t.from_node_id
-    JOIN nodes n_to ON n_to.id = t.to_node_id
+    LEFT JOIN nodes n_from ON n_from.id = t.from_node_id
+    LEFT JOIN nodes n_to ON n_to.id = t.to_node_id
     WHERE t.user_id = ?
   `;
   const params = [userId];

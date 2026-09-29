@@ -161,6 +161,19 @@ async function runTests() {
     });
     console.log(`[PASS] POST /api/export/sql (Current View Scope) -> HTTP ${resSQLView.status}`);
 
+    // 7g. Test Direct Browser Address Bar URL (No Authorization Header, simulating user screenshot)
+    console.log('\n--- Test 7g: Direct Browser Address Bar URL Navigation (No Headers) ---');
+    const directBrowserUrl = '/api/export/db?scope=all&startDate=2026-08-31&endDate=2026-09-28';
+    const resDirect = await request(directBrowserUrl);
+    console.log(`[PASS] GET ${directBrowserUrl} -> HTTP ${resDirect.status} (Content-Type: ${resDirect.headers['content-type']})`);
+    if (resDirect.status !== 200) {
+      throw new Error(`Expected HTTP 200 for direct browser export, got ${resDirect.status}: ${resDirect.body}`);
+    }
+    if (!resDirect.body.startsWith('SQLite format 3')) {
+      throw new Error('Direct browser export .db does not start with SQLite format 3 binary magic header!');
+    }
+    console.log('       [CONFIRMED] Direct browser address bar export downloads binary .db successfully without 401 error!');
+
     console.log('\n🎉 ALL COMBINED LOCALHOST INTEGRATION TESTS PASSED 100%!\n');
   } catch (err) {
     console.error('❌ Integration Test Failed:', err);

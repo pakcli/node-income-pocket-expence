@@ -1,6 +1,7 @@
 import React from 'react';
 import { useStore } from '../../hooks/useStore.js';
 import { useI18n } from '../../hooks/useI18n.js';
+import { accountManager } from '../../services/accounts.js';
 
 export function ModalExportData({
   isOpen,
@@ -43,12 +44,12 @@ export function ModalExportData({
 
   const handleDownload = async (format, scope) => {
     const targetTxs = scope === 'view' ? viewTxs : transactions;
-    const token = localStorage.getItem('student_pocket_token') || '';
+    const token = accountManager.token || localStorage.getItem('spm_auth_token') || localStorage.getItem('student_pocket_token') || '';
 
     showToast(`Menyiapkan export ${format.toUpperCase()} (${scope === 'view' ? 'Current View' : 'All Data'})...`);
 
     try {
-      const response = await fetch(`/api/export/${format}`, {
+      const response = await fetch(`/api/export/${format}?scope=${scope}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -85,9 +86,11 @@ export function ModalExportData({
       onClose();
     } catch (err) {
       console.warn('API export fallback:', err);
-      // Direct GET download fallback
+      // Direct GET download fallback with token & userId
       const q = new URLSearchParams({
         scope,
+        ...(token ? { token } : {}),
+        ...(accountManager.activeUserId ? { userId: accountManager.activeUserId } : {}),
         ...(dateRange.start ? { startDate: dateRange.start } : {}),
         ...(dateRange.end ? { endDate: dateRange.end } : {}),
         ...(customMinBalance ? { minBalance: customMinBalance } : {})
